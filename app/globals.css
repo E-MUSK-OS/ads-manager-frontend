@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-slate-50: #F8FAFC;
+  --color-slate-300: #CBD5E1;
+  --color-slate-500: #64748B;
+  --color-slate-900: #0F172A;
+  
+  --color-indigo-500: #6366F1;
+  --color-indigo-600: #4F46E5;
+  --color-indigo-700: #4338CA;
+  
+  --color-rose-600: #E11D48;
+  --color-emerald-600: #059669;
+  
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-space-grotesk), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Aliases for our design system */
+  --color-background: var(--color-slate-50);
+  --color-surface: #FFFFFF;
+  --color-primary: var(--color-indigo-700);
+  --color-text-main: var(--color-slate-900);
+  --color-border-dim: var(--color-slate-300);
+  
+  /* Semantic data colors */
+  --color-spend: var(--color-rose-600);
+  --color-sales: var(--color-emerald-600);
+
+  /* Radius overrides for a sharp, technical look */
+  --radius-md: 0.25rem; /* sharper than default */
+  --radius-lg: 0.375rem;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text-main);
+    font-family: var(--font-sans);
+  }
+}
+
+/* 
+  The "Graph Paper" Data Stage grid pattern. 
+  This is the bold design choice.
+*/
+.bg-graph-paper {
+  background-image: 
+    linear-gradient(to right, var(--color-slate-300) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-slate-300) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: center top;
+}
+
+.bg-graph-paper-faint {
+  background-image: 
+    linear-gradient(to right, rgba(203, 213, 225, 0.3) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(203, 213, 225, 0.3) 1px, transparent 1px);
+  background-size: 16px 16px;
+  background-position: center top;
+}

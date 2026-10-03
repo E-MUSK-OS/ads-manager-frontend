@@ -18,7 +18,9 @@ export async function apiClient(endpoint: string, options: RequestInit = {}) {
     headers,
   });
 
-  if (response.status === 401) {
+  const isAuthEndpoint = endpoint.startsWith('/auth/');
+
+  if (response.status === 401 && !isAuthEndpoint) {
     clearTokens();
     if (typeof window !== 'undefined') {
       window.location.href = '/login';

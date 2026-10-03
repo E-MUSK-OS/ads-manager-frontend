@@ -65,7 +65,10 @@ export default function Dashboard() {
 
   const totalSpend = metrics.reduce((acc, m) => acc + m.spend, 0);
   const totalSales = metrics.reduce((acc, m) => acc + m.sales, 0);
+  const totalOrganicSales = metrics.reduce((acc, m) => acc + (m.organic_sales || 0), 0);
+  const totalRevenue = totalSales + totalOrganicSales;
   const acos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
+  const tacos = totalRevenue > 0 ? (totalSpend / totalRevenue) * 100 : 0;
   const roas = totalSpend > 0 ? (totalSales / totalSpend) : 0;
 
   // Group by date for chart
@@ -94,7 +97,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      {/* AI Insight Banner */}
+      <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-md shadow-sm flex items-start gap-4">
+        <div className="bg-indigo-100 p-2 rounded-full mt-0.5">
+          <Activity className="w-5 h-5 text-indigo-600" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-indigo-900">Smart Insight</h3>
+          <p className="text-sm text-indigo-700 mt-1">We noticed your TACoS is increasing while ROAS remains stable. Consider shifting budget towards high-converting long-tail keywords to improve organic rank.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-5 gap-4 mb-6">
         <div className="p-5 bg-surface shadow-sm rounded-md border border-border-dim relative overflow-hidden group">
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
           <div className="flex justify-between items-start mb-2">
@@ -119,6 +133,14 @@ export default function Dashboard() {
             <Activity className="w-4 h-4 text-slate-400" />
           </div>
           <div className="text-3xl font-mono font-bold text-slate-900">{formatNumber(acos)}%</div>
+        </div>
+
+        <div className="p-5 bg-surface shadow-sm rounded-md border border-border-dim relative overflow-hidden">
+          <div className="flex justify-between items-start mb-2">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">TACoS</div>
+            <Activity className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="text-3xl font-mono font-bold text-slate-900">{formatNumber(tacos)}%</div>
         </div>
         
         <div className="p-5 bg-surface shadow-sm rounded-md border border-border-dim relative overflow-hidden">

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { setTokens } from '@/lib/auth';
+import { apiClient } from '@/lib/api-client';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -15,29 +16,21 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const res = await fetch(`${baseUrl}/auth/signup`, {
+      await apiClient('/auth/signup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, company_name: company })
       });
       
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to create account');
-      }
-
       // Auto login
-      const loginRes = await fetch(`${baseUrl}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ username: email, password })
-      });
-      if (loginRes.ok) {
-        const data = await loginRes.json();
+      try {
+        const data = await apiClient('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ username: email, password })
+        });
         setTokens(data.access_token, data.refresh_token);
         window.location.href = '/connect-amazon';
-      } else {
+      } catch (loginErr) {
         window.location.href = '/login';
       }
     } catch (err: any) {
@@ -57,7 +50,7 @@ export default function Signup() {
 
         {error && (
           <div className="mb-6 p-4 border border-rose-200 bg-rose-50 rounded-md flex flex-col">
-            <span className="text-sm font-semibold text-rose-800 mb-1">Configuration Error</span>
+            <span className="text-sm font-semibold text-rose-800 mb-1">Signup failed</span>
             <span className="text-sm text-rose-700">{error}</span>
           </div>
         )}

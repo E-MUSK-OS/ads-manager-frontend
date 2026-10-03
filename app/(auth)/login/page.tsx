@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { setTokens } from '@/lib/auth';
+import { apiClient } from '@/lib/api-client';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -14,18 +15,12 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login`, {
+      const data = await apiClient('/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ username, password })
       });
       
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Invalid credentials');
-      }
-
-      const data = await res.json();
       setTokens(data.access_token, data.refresh_token);
       window.location.href = '/dashboard';
     } catch (err: any) {

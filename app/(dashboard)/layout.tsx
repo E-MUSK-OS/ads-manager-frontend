@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, Target, Hash, Search, 
-  Bot, Settings, FileText, CreditCard, LogOut, Zap
+  Bot, Settings, FileText, CreditCard, LogOut, Zap, Package
 } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -19,7 +19,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     {
       title: 'Overview',
       links: [
-        { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard }
+        { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+        { href: '/product-analytics', label: 'Product Analytics', icon: Package }
       ]
     },
     {

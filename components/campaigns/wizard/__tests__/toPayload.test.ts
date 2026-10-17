@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import assert from 'node:assert';
 import { toPayload, defaultDraft } from '../helpers';
 import type { CampaignDraft, MarketplaceRules } from '@/lib/types/campaign';

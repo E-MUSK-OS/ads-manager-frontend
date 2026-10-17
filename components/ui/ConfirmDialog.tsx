@@ -7,13 +7,14 @@ import { Button } from './button';
 interface ConfirmDialogProps {
   open: boolean;
   onClose?: () => void;
+  onCancel?: () => void;
   onOpenChange?: (open: boolean) => void;
   onConfirm: () => void;
   title: string;
   description: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  variant?: 'danger' | 'primary';
+  variant?: 'danger' | 'primary' | 'destructive';
   destructive?: boolean;
   loading?: boolean;
 }
@@ -21,6 +22,7 @@ interface ConfirmDialogProps {
 export function ConfirmDialog({
   open,
   onClose,
+  onCancel,
   onOpenChange,
   onConfirm,
   title,
@@ -35,11 +37,13 @@ export function ConfirmDialog({
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
 
   const handleClose = () => {
+    if (onCancel) onCancel();
     if (onClose) onClose();
     if (onOpenChange) onOpenChange(false);
   };
 
-  const effectiveVariant = variant || (destructive ? 'danger' : 'primary');
+  const effectiveVariant =
+    variant === 'destructive' || variant === 'danger' || destructive ? 'danger' : 'primary';
 
   useEffect(() => {
     if (!open) return;

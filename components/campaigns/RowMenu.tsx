@@ -1,156 +1,254 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import {
-  MoreVertical,
-  Edit2,
-  Copy,
-  Pause,
-  Play,
-  Archive,
-  Search,
-  KeyRound,
-} from 'lucide-react';
-import { Popover } from '@/components/ui/Popover';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import type { CampaignItem, CampaignState } from '@/lib/types/campaign';
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Popover } from "@/components/ui/Popover";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
-interface RowMenuProps {
-  campaign: CampaignItem;
-  onDuplicate: (id: number) => void;
-  onUpdateStatus: (id: number, state: CampaignState) => void;
+export type CampaignStatus = "ENABLED" | "PAUSED" | "ARCHIVED" | string;
+
+export interface RowMenuCampaign {
+  id: string | number;
+  name: string;
+  status?: CampaignStatus;
+  state?: CampaignStatus;
+  daily_budget?: number;
 }
 
-export function RowMenu({ campaign, onDuplicate, onUpdateStatus }: RowMenuProps) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+export interface RowMenuProps {
+  campaign: RowMenuCampaign;
+  onStatusChange?: (
+    campaignId: string,
+    nextStatus: "ENABLED" | "PAUSED" | "ARCHIVED"
+  ) => Promise<void> | void;
+  onDuplicate?: (campaign: RowMenuCampaign) => Promise<void> | void;
+  onEditBudget?: (campaign: RowMenuCampaign) => void;
+  onDelete?: (campaignId: string) => Promise<void> | void;
+  disabled?: boolean;
+}
 
-  const isEnabled = campaign.state === 'ENABLED';
-  const isArchived = campaign.state === 'ARCHIVED';
+export function RowMenu({
+  campaign,
+  onStatusChange,
+  onDuplicate,
+  onEditBudget,
+  onDelete,
+  disabled = false,
+}: RowMenuProps) {
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    type: "ARCHIVE" | "DELETE" | null;
+  }>({ open: false, type: null });
+
+  const normalizedStatus = (campaign.status || campaign.state || "").toUpperCase();
+  const isArchived = normalizedStatus === "ARCHIVED";
+  const isEnabled = normalizedStatus === "ENABLED" || normalizedStatus === "ACTIVE";
+  const isPaused = normalizedStatus === "PAUSED";
+
+  const runAction = async (
+    action: () => Promise<void> | void,
+    closeMenu: () => void
+  ) => {
+    if (isPending || disabled) return;
+    closeMenu();
+    try {
+      setIsPending(true);
+      await action();
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!confirmState.type || isPending) return;
+    const actionType = confirmState.type;
+    setConfirmState({ open: false, type: null });
+
+    try {
+      setIsPending(true);
+      if (actionType === "ARCHIVE" && onStatusChange) {
+        await onStatusChange(String(campaign.id), "ARCHIVED");
+      } else if (actionType === "DELETE" && onDelete) {
+        await onDelete(String(campaign.id));
+      }
+    } finally {
+      setIsPending(false);
+    }
+  };
 
   return (
-    <>
+    <div
+      className="inline-flex items-center justify-end"
+      onClick={(e) => e.stopPropagation()}
+    >
       <Popover
-        open={open}
-        onOpenChange={setOpen}
-        align="start"
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        align="right"
         trigger={
           <button
             type="button"
-            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-            title="Campaign actions"
+            disabled={disabled || isPending}
+            aria-label={`Actions for ${campaign.name}`}
+            data-testid={`row-menu-trigger-${campaign.id}`}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
           >
-            <MoreVertical className="w-3.5 h-3.5" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="12" cy="5" r="1" />
+              <circle cx="12" cy="19" r="1" />
+            </svg>
           </button>
         }
       >
-        <div className="w-44 p-1 text-xs font-mono text-text-main flex flex-col gap-0.5">
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              router.push(`/campaigns/${campaign.id}`);
-            }}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-100 text-left text-slate-700"
-          >
-            <Edit2 className="w-3.5 h-3.5 text-slate-400" />
-            <span>Edit details</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onDuplicate(campaign.id);
-            }}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-100 text-left text-slate-700"
-          >
-            <Copy className="w-3.5 h-3.5 text-slate-400" />
-            <span>Duplicate</span>
-          </button>
-
-          {!isArchived && (
+        {({ close }) => (
+          <div className="flex flex-col py-1 text-sm text-slate-700 dark:text-slate-200">
             <button
               type="button"
-              onClick={() => {
-                setOpen(false);
-                onUpdateStatus(campaign.id, isEnabled ? 'PAUSED' : 'ENABLED');
+              role="menuitem"
+              className="flex w-full items-center px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+              onClick={(e) => {
+                e.stopPropagation();
+                close();
+                router.push(`/campaigns/${campaign.id}`);
               }}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-100 text-left text-slate-700"
             >
-              {isEnabled ? (
-                <>
-                  <Pause className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Pause</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Enable</span>
-                </>
-              )}
+              View details
             </button>
-          )}
 
-          <div className="h-px bg-border-dim my-0.5" />
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              router.push(`/campaigns/${campaign.id}?tab=keywords`);
-            }}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-100 text-left text-slate-700"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-            <span>View keywords</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              router.push(`/campaigns/${campaign.id}?tab=search_terms`);
-            }}
-            className="flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-slate-100 text-left text-slate-700"
-          >
-            <Search className="w-3.5 h-3.5 text-slate-400" />
-            <span>View search terms</span>
-          </button>
-
-          {!isArchived && (
-            <>
-              <div className="h-px bg-border-dim my-0.5" />
+            {onEditBudget && !isArchived && (
               <button
                 type="button"
-                onClick={() => {
-                  setOpen(false);
-                  setArchiveConfirmOpen(true);
+                role="menuitem"
+                className="flex w-full items-center px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  close();
+                  onEditBudget(campaign);
                 }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-rose-50 text-left text-spend"
               >
-                <Archive className="w-3.5 h-3.5" />
-                <span>Archive</span>
+                Edit daily budget
               </button>
-            </>
-          )}
-        </div>
+            )}
+
+            {onStatusChange && isEnabled && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void runAction(
+                    () => onStatusChange(String(campaign.id), "PAUSED"),
+                    close
+                  );
+                }}
+              >
+                Pause campaign
+              </button>
+            )}
+
+            {onStatusChange && isPaused && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void runAction(
+                    () => onStatusChange(String(campaign.id), "ENABLED"),
+                    close
+                  );
+                }}
+              >
+                Enable campaign
+              </button>
+            )}
+
+            {onDuplicate && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void runAction(() => onDuplicate(campaign), close);
+                }}
+              >
+                Duplicate
+              </button>
+            )}
+
+            {!isArchived && onStatusChange && (
+              <>
+                <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center px-3 py-2 text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    close();
+                    setConfirmState({ open: true, type: "ARCHIVE" });
+                  }}
+                >
+                  Archive campaign
+                </button>
+              </>
+            )}
+
+            {onDelete && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center px-3 py-2 text-left text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  close();
+                  setConfirmState({ open: true, type: "DELETE" });
+                }}
+              >
+                Delete campaign
+              </button>
+            )}
+          </div>
+        )}
       </Popover>
 
+      {/* Rendered outside Popover so closing the menu does not unmount the modal */}
       <ConfirmDialog
-        open={archiveConfirmOpen}
-        onOpenChange={setArchiveConfirmOpen}
-        title="Archive campaign?"
-        description={`Are you sure you want to archive "${campaign.name}"? This action cannot be undone.`}
-        confirmLabel="Archive"
-        destructive
-        onConfirm={() => {
-          onUpdateStatus(campaign.id, 'ARCHIVED');
-          setArchiveConfirmOpen(false);
-        }}
+        open={confirmState.open}
+        title={
+          confirmState.type === "ARCHIVE"
+            ? "Archive Campaign?"
+            : "Delete Campaign?"
+        }
+        description={
+          confirmState.type === "ARCHIVE"
+            ? `Archiving "${campaign.name}" will permanently stop ad delivery. Archived campaigns cannot be re-enabled.`
+            : `Are you sure you want to permanently delete "${campaign.name}"?`
+        }
+        confirmLabel={confirmState.type === "ARCHIVE" ? "Archive" : "Delete"}
+        variant="destructive"
+        onConfirm={handleConfirm}
+        onCancel={() => setConfirmState({ open: false, type: null })}
       />
-    </>
+    </div>
   );
 }
+
+export default RowMenu;

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ChevronRight,
   ChevronDown,
@@ -76,6 +77,7 @@ export function CampaignTable({
   onRetry,
   draftsCount = 0,
 }: CampaignTableProps) {
+  const router = useRouter();
   const { account, rules } = useActiveAccount();
 
   // Search input state (debounced)
@@ -565,14 +567,19 @@ export function CampaignTable({
                 return (
                   <React.Fragment key={c.id}>
                     <tr
-                      className={`hover:bg-slate-50/80 transition-colors ${
+                      onClick={() => router.push(`/campaigns/${c.id}`)}
+                      className={`cursor-pointer hover:bg-slate-50/80 transition-colors ${
                         isSelected ? 'bg-indigo-50/30' : ''
                       } ${isHighlighted ? 'bg-indigo-50/70 ring-2 ring-primary/40' : ''}`}
                     >
                       {/* Select checkbox */}
-                      <td className="py-2.5 px-3 sticky left-0 z-10 bg-white">
+                      <td
+                        className="py-2.5 px-3 sticky left-0 z-10 bg-white"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <input
                           type="checkbox"
+                          aria-label={`Select ${c.name}`}
                           checked={isSelected}
                           onChange={() => toggleSelectRow(c.id)}
                           className="rounded border-border-dim text-primary focus:ring-primary h-3.5 w-3.5"
@@ -580,11 +587,22 @@ export function CampaignTable({
                       </td>
 
                       {/* Row actions */}
-                      <td className="py-2.5 px-2 sticky left-10 z-10 bg-white text-center">
+                      <td
+                        className="py-2.5 px-2 sticky left-10 z-10 bg-white text-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <RowMenu
                           campaign={c}
-                          onDuplicate={onDuplicate}
-                          onUpdateStatus={onUpdateStatus}
+                          onStatusChange={async (id, nextStatus) => {
+                            onUpdateStatus(Number(id), nextStatus as CampaignState);
+                          }}
+                          onDuplicate={(cmp) => {
+                            onDuplicate(Number(cmp.id));
+                          }}
+                          onEditBudget={(cmp) => {
+                            setEditingBudgetId(Number(cmp.id));
+                            setEditingBudgetValue(String(cmp.daily_budget || ''));
+                          }}
                         />
                       </td>
 
@@ -593,7 +611,10 @@ export function CampaignTable({
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => toggleExpandRow(c.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpandRow(c.id);
+                            }}
                             className="p-0.5 text-slate-400 hover:text-slate-600 rounded"
                             title={isExpanded ? 'Collapse ad groups' : 'Expand ad groups'}
                           >
@@ -605,6 +626,7 @@ export function CampaignTable({
                           </button>
                           <Link
                             href={`/campaigns/${c.id}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="font-medium text-slate-900 hover:text-primary transition-colors hover:underline truncate max-w-[280px]"
                             title={c.name}
                           >
@@ -615,7 +637,9 @@ export function CampaignTable({
 
                       {/* Status */}
                       {visibleColumns.includes('status') && (
-                        <td className="py-2.5 px-3">{getStatusBadge(c.state, c.id)}</td>
+                        <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                          {getStatusBadge(c.state, c.id)}
+                        </td>
                       )}
 
                       {/* Health */}
@@ -635,7 +659,7 @@ export function CampaignTable({
 
                       {/* Daily Budget (inline editable) */}
                       {visibleColumns.includes('daily_budget') && (
-                        <td className="py-2.5 px-3 text-right">
+                        <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                           {editingBudgetId === c.id ? (
                             <div className="flex items-center justify-end gap-1">
                               <input

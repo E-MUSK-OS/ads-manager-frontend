@@ -6,9 +6,11 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, Target, Hash, Search, 
   Bot, Settings, FileText, CreditCard, LogOut, Zap, Package,
-  ChevronDown
+  ChevronDown, Sparkles
 } from 'lucide-react';
 import { useActiveAccount } from '@/lib/useActiveAccount';
+import { getRecommendationsSummary } from '@/lib/recommendations-api';
+import React, { useState, useEffect } from 'react';
 
 function AccountSwitcher() {
   const { accounts, account, rules, setActiveAccountId, loading } = useActiveAccount();
@@ -69,6 +71,39 @@ function AccountSwitcher() {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { account } = useActiveAccount();
+  const [openCount, setOpenCount] = useState<number>(0);
+
+  useEffect(() => {
+    let active = true;
+    const fetchOpenCount = async () => {
+      if (!account?.id) {
+        if (active) setOpenCount(0);
+        return;
+      }
+      try {
+        const s = await getRecommendationsSummary(account.id);
+        if (active) setOpenCount(s.open || 0);
+      } catch {
+        // ignore background fetch error
+      }
+    };
+
+    const timer = setTimeout(() => {
+      fetchOpenCount();
+    }, 0);
+
+    const handleChanged = () => {
+      fetchOpenCount();
+    };
+
+    window.addEventListener('recommendations:changed', handleChanged);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      window.removeEventListener('recommendations:changed', handleChanged);
+    };
+  }, [account]);
 
   const handleLogout = () => {
     clearTokens();
@@ -94,6 +129,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     {
       title: 'Intelligence',
       links: [
+        { href: '/recommendations', label: 'Recommendations', icon: Sparkles, badge: openCount },
         { href: '/ai-insights', label: 'AI Insights', icon: Bot },
         { href: '/automation-rules', label: 'Automation', icon: Zap }
       ]
@@ -136,7 +172,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     }`}
                   >
                     <Icon className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-slate-400'}`} />
-                    {link.label}
+                    <span>{link.label}</span>
+                    {Boolean(link.badge && link.badge > 0) && (
+                      <span className="ml-auto px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded-full bg-indigo-50 text-primary border border-indigo-200">
+                        {link.badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

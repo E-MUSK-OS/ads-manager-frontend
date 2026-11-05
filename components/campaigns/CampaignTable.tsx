@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -8,20 +8,30 @@ import {
   ChevronDown,
   Search,
   Download,
-  Filter,
-  Check,
   RotateCw,
   AlertCircle,
   FileText,
-  DollarSign,
+  Pencil,
+  Check,
+  X,
+  SlidersHorizontal,
+  Calendar,
+  IndianRupee,
 } from 'lucide-react';
-import { useActiveAccount } from '@/lib/useActiveAccount';
 import { money, pct, ratio, num } from '@/lib/format';
+import { calculateMaxEffectiveBid, type BiddingStrategy } from './wizard/helpers';
 import { ColumnChooser, DEFAULT_VISIBLE_COLUMNS, ColumnKey } from './ColumnChooser';
 import { RowMenu } from './RowMenu';
 import { BulkBar } from './BulkBar';
 import { DraftsPanel } from './DraftsPanel';
 import { getCampaignAdGroups } from '@/lib/api-client';
+import { Switch } from '@/components/ui/Switch';
+import { Popover } from '@/components/ui/Popover';
+import { MoneyInput } from '@/components/ui/MoneyInput';
+import { PercentInput } from '@/components/ui/PercentInput';
+import { DatePicker } from '@/components/ui/DatePicker';
+import { RadioCard } from '@/components/ui/RadioCard';
+import { FieldError } from '@/components/ui/FieldError';
 import type {
   CampaignItem,
   CampaignState,
@@ -42,14 +52,17 @@ interface CampaignTableProps {
   sortField: string;
   sortDir: 'asc' | 'desc';
   filters: FilterState;
+  selectedIds?: number[];
+  onSelectedIdsChange?: (ids: number[]) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onSortChange: (field: string, dir: 'asc' | 'desc') => void;
   onFilterChange: (filters: FilterState) => void;
   onUpdateStatus: (id: number, state: CampaignState) => void;
   onUpdateBudget: (id: number, budget: number) => Promise<boolean>;
+  onPatchCampaign?: (id: number, data: Partial<Record<string, unknown>>) => Promise<boolean>;
   onDuplicate: (id: number) => void;
-  onBulkAction: (ids: number[], action: string, value?: number) => void;
+  onBulkAction: (ids: number[], action: string, value?: any, extra?: any) => void;
   onRetry: () => void;
   draftsCount?: number;
 }
@@ -66,19 +79,21 @@ export function CampaignTable({
   sortField,
   sortDir,
   filters,
+  selectedIds: controlledSelectedIds,
+  onSelectedIdsChange,
   onPageChange,
   onPageSizeChange,
   onSortChange,
   onFilterChange,
   onUpdateStatus,
   onUpdateBudget,
+  onPatchCampaign,
   onDuplicate,
   onBulkAction,
   onRetry,
   draftsCount = 0,
 }: CampaignTableProps) {
   const router = useRouter();
-  const { account, rules } = useActiveAccount();
 
   // Search input state (debounced)
   const [searchInput, setSearchInput] = useState(filters.search || '');
@@ -91,30 +106,59 @@ export function CampaignTable({
     return () => clearTimeout(timer);
   }, [searchInput, filters, onFilterChange]);
 
-  // Columns visibility state
-  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(() => {
+  // Columns visibility state (initialized to DEFAULT_VISIBLE_COLUMNS to prevent SSR hydration mismatch)
+  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
+
+  useEffect(() => {
     try {
       const stored = localStorage.getItem('ads_manager_visible_columns');
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setVisibleColumns(parsed);
+        }
+      }
     } catch {}
-    return DEFAULT_VISIBLE_COLUMNS;
-  });
+  }, []);
 
   // Row selection
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [internalSelectedIds, setInternalSelectedIds] = useState<number[]>([]);
+  const selectedIds = controlledSelectedIds ?? internalSelectedIds;
+  const setSelectedIds = (ids: number[]) => {
+    if (onSelectedIdsChange) {
+      onSelectedIdsChange(ids);
+    } else {
+      setInternalSelectedIds(ids);
+    }
+  };
 
   // Expanded rows (for nested ad-groups)
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
   const [adGroupsData, setAdGroupsData] = useState<Record<number, AdGroupItem[]>>({});
   const [adGroupsLoading, setAdGroupsLoading] = useState<Record<number, boolean>>({});
 
-  // Inline budget editing
-  const [editingBudgetId, setEditingBudgetId] = useState<number | null>(null);
-  const [editingBudgetValue, setEditingBudgetValue] = useState<string>('');
-  const [savingBudget, setSavingBudget] = useState(false);
-
   // Drafts panel open
   const [draftsOpen, setDraftsOpen] = useState(false);
+
+  // Popover inline edit states
+  const [editingNameId, setEditingNameId] = useState<number | null>(null);
+  const [editingNameVal, setEditingNameVal] = useState<string>('');
+  const [editingNameErr, setEditingNameErr] = useState<string | null>(null);
+
+  const [editingBudgetId, setEditingBudgetId] = useState<number | null>(null);
+  const [editingBudgetVal, setEditingBudgetVal] = useState<number>(500);
+  const [editingBudgetErr, setEditingBudgetErr] = useState<string | null>(null);
+
+  const [editingStrategyId, setEditingStrategyId] = useState<number | null>(null);
+  const [editingStrategyVal, setEditingStrategyVal] = useState<string>('DOWN_ONLY');
+
+  const [editingPlacementsId, setEditingPlacementsId] = useState<number | null>(null);
+  const [editingTopPct, setEditingTopPct] = useState<number>(0);
+  const [editingPagesPct, setEditingPagesPct] = useState<number>(0);
+
+  const [editingDatesId, setEditingDatesId] = useState<number | null>(null);
+  const [editingStartDate, setEditingStartDate] = useState<string>('');
+  const [editingEndDate, setEditingEndDate] = useState<string | null>(null);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === campaigns.length) {
@@ -159,48 +203,106 @@ export function CampaignTable({
     }
   };
 
-  const handleStartBudgetEdit = (c: CampaignItem, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingBudgetId(c.id);
-    setEditingBudgetValue(String(c.daily_budget));
-  };
-
-  const handleSaveBudget = async (id: number) => {
-    const val = Number(editingBudgetValue);
-    if (isNaN(val) || val <= 0) {
-      setEditingBudgetId(null);
+  // Inline edit savers
+  const handleSaveName = async (c: CampaignItem) => {
+    const trimmed = editingNameVal.trim();
+    if (!trimmed) {
+      setEditingNameErr('Campaign name cannot be empty');
       return;
     }
-    setSavingBudget(true);
-    const ok = await onUpdateBudget(id, val);
-    setSavingBudget(false);
-    if (ok) {
-      setEditingBudgetId(null);
+    setEditingNameErr(null);
+    if (onPatchCampaign) {
+      const ok = await onPatchCampaign(c.id, { name: trimmed });
+      if (ok) setEditingNameId(null);
+    } else {
+      setEditingNameId(null);
+    }
+  };
+
+  const handleSaveBudget = async (c: CampaignItem) => {
+    if (editingBudgetVal < 100) {
+      setEditingBudgetErr('Daily budget must be at least ₹100.00');
+      return;
+    }
+    setEditingBudgetErr(null);
+    const ok = await onUpdateBudget(c.id, editingBudgetVal);
+    if (ok) setEditingBudgetId(null);
+  };
+
+  const handleSaveStrategy = async (c: CampaignItem) => {
+    if (onPatchCampaign) {
+      const ok = await onPatchCampaign(c.id, { bidding_strategy: editingStrategyVal });
+      if (ok) setEditingStrategyId(null);
+    } else {
+      setEditingStrategyId(null);
+    }
+  };
+
+  const handleSavePlacements = async (c: CampaignItem) => {
+    if (onPatchCampaign) {
+      const ok = await onPatchCampaign(c.id, {
+        placement_top_of_search_pct: editingTopPct,
+        placement_product_pages_pct: editingPagesPct,
+      });
+      if (ok) setEditingPlacementsId(null);
+    } else {
+      setEditingPlacementsId(null);
+    }
+  };
+
+  const handleSaveDates = async (c: CampaignItem) => {
+    if (onPatchCampaign) {
+      const ok = await onPatchCampaign(c.id, {
+        start_date: editingStartDate,
+        end_date: editingEndDate || null,
+      });
+      if (ok) setEditingDatesId(null);
+    } else {
+      setEditingDatesId(null);
     }
   };
 
   const handleExportCsv = () => {
     if (campaigns.length === 0) return;
-    const headers = ['ID', 'Name', 'State', 'Health', 'Budget', 'Spend', 'Sales', 'Orders', 'Clicks', 'Impressions', 'ACOS', 'ROAS'];
+    const headers = [
+      'ID',
+      'Name',
+      'State',
+      'Delivery Status',
+      'Daily Budget (₹)',
+      'Spend (₹)',
+      'Sales (₹)',
+      'Orders',
+      'Clicks',
+      'Impressions',
+      'CTR (%)',
+      'CPC (₹)',
+      'ACOS (%)',
+      'ROAS',
+    ];
     const rows = campaigns.map((c) => [
       c.id,
       `"${c.name.replace(/"/g, '""')}"`,
       c.state,
-      c.health,
+      c.delivery_status || 'DELIVERING',
       c.daily_budget,
       c.spend,
       c.sales,
       c.orders,
       c.clicks,
       c.impressions,
-      c.acos !== null ? `${c.acos.toFixed(2)}%` : '—',
-      c.roas !== null ? `${c.roas.toFixed(2)}x` : '—',
+      c.ctr !== null && c.ctr !== undefined ? `${c.ctr.toFixed(2)}%` : '—',
+      c.cpc !== null && c.cpc !== undefined ? `₹${c.cpc.toFixed(2)}` : '—',
+      c.acos_is_infinite ? 'INF' : c.acos !== null && c.acos !== undefined ? `${c.acos.toFixed(2)}%` : '—',
+      c.roas !== null && c.roas !== undefined ? `${c.roas.toFixed(2)}x` : '—',
     ]);
-    const csv = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csv =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const encoded = encodeURI(csv);
     const link = document.createElement('a');
     link.href = encoded;
-    link.download = `campaigns_report_${account?.marketplace || 'export'}.csv`;
+    link.download = `campaigns_inr_report.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -210,43 +312,31 @@ export function CampaignTable({
   const startIndex = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const endIndex = Math.min(page * pageSize, totalCount);
 
-  // Status badge colors
-  const getStatusBadge = (state: CampaignState, id: number) => {
-    const isArchived = state === 'ARCHIVED';
-    const isEnabled = state === 'ENABLED';
-
+  // Delivery status badge
+  const getDeliveryBadge = (c: CampaignItem) => {
+    const status = (c.delivery_status || (c.state === 'PAUSED' ? 'PAUSED' : 'DELIVERING')).toUpperCase();
+    const styleMap: Record<string, string> = {
+      DELIVERING: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      OUT_OF_BUDGET: 'bg-amber-50 text-amber-700 border-amber-200',
+      PAUSED: 'bg-slate-100 text-slate-600 border-slate-200',
+      ARCHIVED: 'bg-slate-100 text-slate-400 border-slate-200',
+      ENDED: 'bg-rose-50 text-rose-700 border-rose-200',
+    };
     return (
-      <button
-        type="button"
-        disabled={isArchived}
-        onClick={(e) => {
-          e.stopPropagation();
-          onUpdateStatus(id, isEnabled ? 'PAUSED' : 'ENABLED');
-        }}
-        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono font-medium transition-colors ${
-          isEnabled
-            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-            : isArchived
-            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-            : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border font-medium uppercase tracking-wider ${
+          styleMap[status] || styleMap.DELIVERING
         }`}
-        title={isArchived ? 'Archived campaigns cannot be enabled' : `Click to ${isEnabled ? 'pause' : 'enable'}`}
       >
-        <span
-          className={`w-1.5 h-1.5 rounded-full ${
-            isEnabled ? 'bg-emerald-500' : isArchived ? 'bg-slate-400' : 'bg-amber-500'
-          }`}
-        />
-        <span>{state}</span>
-      </button>
+        {status.replace(/_/g, ' ')}
+      </span>
     );
   };
 
-  // Health badge colors
+  // Health badge
   const getHealthBadge = (c: CampaignItem) => {
     const color = c.health_color || 'green';
     const label = c.health_label || c.health || 'Healthy';
-
     const colorMap: Record<string, string> = {
       green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       red: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -254,7 +344,6 @@ export function CampaignTable({
       blue: 'bg-sky-50 text-sky-700 border-sky-200',
       slate: 'bg-slate-50 text-slate-600 border-slate-200',
     };
-
     return (
       <span
         className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono border font-medium uppercase tracking-wider ${
@@ -281,7 +370,7 @@ export function CampaignTable({
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-primary hover:bg-indigo-50 transition-colors font-medium"
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>Drafts</span>
+              <span>Drafts ({draftsCount})</span>
             </button>
           </div>
 
@@ -292,7 +381,7 @@ export function CampaignTable({
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search campaigns..."
+              placeholder="Search campaigns, ID, ASIN..."
               className="w-full pl-8 pr-3 py-1.5 text-xs font-mono border border-border-dim rounded-md bg-white focus:outline-hidden focus:border-primary"
             />
           </div>
@@ -322,7 +411,7 @@ export function CampaignTable({
           <button
             type="button"
             onClick={onRetry}
-            className="mt-3 px-3 py-1 bg-primary text-white text-xs rounded font-medium inline-flex items-center gap-1.5"
+            className="mt-3 px-3 py-1 bg-primary text-white text-xs rounded font-medium inline-flex items-center gap-1.5 shadow-2xs"
           >
             <RotateCw className="w-3 h-3" />
             <span>Retry</span>
@@ -330,29 +419,30 @@ export function CampaignTable({
         </div>
       )}
 
-      {/* Table Area */}
-      <div className="overflow-x-auto relative">
+      {/* Table Area with Strict 5-Layer Z-Index & Sticky Column Matrix (Glitch 2) */}
+      <div className="relative overflow-x-auto bg-surface border-b border-border-dim">
         <table className="w-full text-left border-collapse">
           {/* Header */}
           <thead className="bg-slate-50 border-b border-border-dim text-[11px] font-mono uppercase tracking-wider text-slate-500 sticky top-0 z-20">
             <tr>
-              {/* Checkbox column */}
-              <th className="py-2.5 px-3 w-10 sticky left-0 z-30 bg-slate-50">
+              {/* Sticky Col 1: Checkbox */}
+              <th className="py-2.5 px-3 w-10 min-w-[40px] max-w-[40px] sticky left-0 z-30 bg-slate-50">
                 <input
                   type="checkbox"
+                  aria-label="Select all campaigns"
                   checked={campaigns.length > 0 && selectedIds.length === campaigns.length}
                   onChange={toggleSelectAll}
                   className="rounded border-border-dim text-primary focus:ring-primary h-3.5 w-3.5"
                 />
               </th>
 
-              {/* Actions column */}
-              <th className="py-2.5 px-2 w-8 sticky left-10 z-30 bg-slate-50 text-center">
-                ⋮
+              {/* Sticky Col 2: State Switch */}
+              <th className="py-2.5 px-2 w-14 min-w-[56px] max-w-[56px] sticky left-[40px] z-30 bg-slate-50 text-center">
+                State
               </th>
 
-              {/* Campaign Name column */}
-              <th className="py-2.5 px-3 min-w-[220px] sticky left-[68px] z-30 bg-slate-50">
+              {/* Sticky Col 3: Campaign Name */}
+              <th className="py-2.5 px-3 min-w-[260px] max-w-[320px] sticky left-[96px] z-30 bg-slate-50 shadow-[1px_0_0_0_var(--color-border-dim)]">
                 <button
                   type="button"
                   onClick={() => handleHeaderSort('name')}
@@ -367,30 +457,22 @@ export function CampaignTable({
 
               {/* Dynamic Columns */}
               {visibleColumns.includes('status') && (
-                <th className="py-2.5 px-3 min-w-[100px]">Status</th>
+                <th className="py-2.5 px-3 min-w-[110px]">Delivery</th>
               )}
 
               {visibleColumns.includes('health') && (
-                <th className="py-2.5 px-3 min-w-[110px]">Health</th>
-              )}
-
-              {visibleColumns.includes('start_date') && (
-                <th className="py-2.5 px-3 min-w-[100px]">Start</th>
-              )}
-
-              {visibleColumns.includes('end_date') && (
-                <th className="py-2.5 px-3 min-w-[100px]">End</th>
+                <th className="py-2.5 px-3 min-w-[100px]">Health</th>
               )}
 
               {visibleColumns.includes('daily_budget') && (
-                <th className="py-2.5 px-3 min-w-[120px] text-right">
+                <th className="py-2.5 px-3 min-w-[140px] text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button
                       type="button"
                       onClick={() => handleHeaderSort('daily_budget')}
                       className="hover:text-slate-800"
                     >
-                      Budget
+                      Daily Budget (₹)
                     </button>
                     {sortField === 'daily_budget' && (
                       <span className="text-primary">{sortDir === 'asc' ? '↑' : '↓'}</span>
@@ -399,16 +481,28 @@ export function CampaignTable({
                 </th>
               )}
 
-              {visibleColumns.includes('targeting_type') && (
-                <th className="py-2.5 px-3 min-w-[90px]">Targeting</th>
-              )}
-
               {visibleColumns.includes('bidding_strategy') && (
                 <th className="py-2.5 px-3 min-w-[130px]">Strategy</th>
               )}
 
+              {visibleColumns.includes('placement_multipliers') && (
+                <th className="py-2.5 px-3 min-w-[130px]">Placements</th>
+              )}
+
+              {visibleColumns.includes('targeting_type') && (
+                <th className="py-2.5 px-3 min-w-[90px]">Targeting</th>
+              )}
+
+              {visibleColumns.includes('start_date') && (
+                <th className="py-2.5 px-3 min-w-[100px]">Start Date</th>
+              )}
+
+              {visibleColumns.includes('end_date') && (
+                <th className="py-2.5 px-3 min-w-[100px]">End Date</th>
+              )}
+
               {visibleColumns.includes('impressions') && (
-                <th className="py-2.5 px-3 min-w-[110px] text-right">
+                <th className="py-2.5 px-3 min-w-[100px] text-right">
                   <button
                     type="button"
                     onClick={() => handleHeaderSort('impressions')}
@@ -436,23 +530,23 @@ export function CampaignTable({
               )}
 
               {visibleColumns.includes('spend') && (
-                <th className="py-2.5 px-3 min-w-[100px] text-right">
+                <th className="py-2.5 px-3 min-w-[110px] text-right">
                   <button
                     type="button"
                     onClick={() => handleHeaderSort('spend')}
                     className="hover:text-slate-800"
                   >
-                    Spend {sortField === 'spend' && (sortDir === 'asc' ? '↑' : '↓')}
+                    Spend (₹) {sortField === 'spend' && (sortDir === 'asc' ? '↑' : '↓')}
                   </button>
                 </th>
               )}
 
               {visibleColumns.includes('cpc') && (
-                <th className="py-2.5 px-3 min-w-[80px] text-right">CPC</th>
+                <th className="py-2.5 px-3 min-w-[85px] text-right">CPC (₹)</th>
               )}
 
               {visibleColumns.includes('orders') && (
-                <th className="py-2.5 px-3 min-w-[80px] text-right">
+                <th className="py-2.5 px-3 min-w-[85px] text-right">
                   <button
                     type="button"
                     onClick={() => handleHeaderSort('orders')}
@@ -470,13 +564,13 @@ export function CampaignTable({
                     onClick={() => handleHeaderSort('sales')}
                     className="hover:text-slate-800"
                   >
-                    Sales {sortField === 'sales' && (sortDir === 'asc' ? '↑' : '↓')}
+                    Sales (₹) {sortField === 'sales' && (sortDir === 'asc' ? '↑' : '↓')}
                   </button>
                 </th>
               )}
 
               {visibleColumns.includes('acos') && (
-                <th className="py-2.5 px-3 min-w-[80px] text-right">
+                <th className="py-2.5 px-3 min-w-[85px] text-right">
                   <button
                     type="button"
                     onClick={() => handleHeaderSort('acos')}
@@ -500,8 +594,11 @@ export function CampaignTable({
               )}
 
               {visibleColumns.includes('budget_utilization') && (
-                <th className="py-2.5 px-3 min-w-[110px] text-right">Util. %</th>
+                <th className="py-2.5 px-3 min-w-[100px] text-right">Util. %</th>
               )}
+
+              {/* Actions Column */}
+              <th className="py-2.5 px-2 w-10 text-center">⋮</th>
             </tr>
           </thead>
 
@@ -509,7 +606,7 @@ export function CampaignTable({
           <tbody className="divide-y divide-border-dim bg-white">
             {loading && campaigns.length === 0 ? (
               <tr>
-                <td colSpan={20} className="py-12 text-center text-slate-400">
+                <td colSpan={25} className="py-12 text-center text-slate-400">
                   <div className="inline-flex items-center gap-2">
                     <RotateCw className="w-4 h-4 animate-spin text-primary" />
                     <span>Loading campaigns...</span>
@@ -518,44 +615,19 @@ export function CampaignTable({
               </tr>
             ) : campaigns.length === 0 ? (
               <tr>
-                <td colSpan={20} className="py-16 text-center text-slate-400">
-                  {!account ? (
-                    <div className="max-w-xs mx-auto">
-                      <p className="font-semibold text-slate-700">No account connected</p>
-                      <p className="text-[11px] mt-1 text-slate-500">
-                        Connect an Amazon Ads account to view your campaigns.
-                      </p>
-                    </div>
-                  ) : totalCount === 0 && !filters.search ? (
-                    <div className="max-w-xs mx-auto">
-                      <p className="font-semibold text-slate-700">No campaigns yet</p>
-                      <p className="text-[11px] mt-1 text-slate-500">
-                        Create your first Amazon Ads campaign to get started.
-                      </p>
-                      <Link
-                        href="/campaigns/new"
-                        className="mt-3 inline-block px-3 py-1.5 bg-primary text-white rounded font-medium text-xs shadow-2xs"
-                      >
-                        + Create campaign
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="max-w-xs mx-auto">
-                      <p className="font-semibold text-slate-700">No campaigns match</p>
-                      <p className="text-[11px] mt-1 text-slate-500">
-                        Try adjusting your filters or search terms.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onFilterChange({ status: [], health: [], targeting_type: [], search: '' })
-                        }
-                        className="mt-3 px-3 py-1 border border-border-dim rounded text-xs font-medium hover:bg-slate-50"
-                      >
-                        Clear filters
-                      </button>
-                    </div>
-                  )}
+                <td colSpan={25} className="py-16 text-center text-slate-400">
+                  <div className="max-w-xs mx-auto">
+                    <p className="font-semibold text-slate-700">No campaigns found</p>
+                    <p className="text-[11px] mt-1 text-slate-500">
+                      Try adjusting filters or search terms, or create a new campaign.
+                    </p>
+                    <Link
+                      href="/campaigns/new"
+                      className="mt-3 inline-block px-3 py-1.5 bg-primary text-white rounded font-medium text-xs shadow-2xs"
+                    >
+                      + Create campaign
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -563,18 +635,26 @@ export function CampaignTable({
                 const isExpanded = expandedIds.includes(c.id);
                 const isSelected = selectedIds.includes(c.id);
                 const isHighlighted = highlightedRowId === c.id;
+                const isArchived = c.state === 'ARCHIVED';
+                const utilizationPct =
+                  c.budget_utilization_pct !== undefined
+                    ? c.budget_utilization_pct
+                    : c.daily_budget > 0
+                    ? Number(((Number(c.today_spend || 0) / c.daily_budget) * 100).toFixed(1))
+                    : 0;
+                const isAlmostOutOfBudget = utilizationPct >= 85;
 
                 return (
                   <React.Fragment key={c.id}>
                     <tr
                       onClick={() => router.push(`/campaigns/${c.id}`)}
-                      className={`cursor-pointer hover:bg-slate-50/80 transition-colors ${
+                      className={`cursor-pointer hover:bg-slate-50/80 transition-colors group ${
                         isSelected ? 'bg-indigo-50/30' : ''
                       } ${isHighlighted ? 'bg-indigo-50/70 ring-2 ring-primary/40' : ''}`}
                     >
-                      {/* Select checkbox */}
+                      {/* Sticky Col 1: Checkbox (z-10) */}
                       <td
-                        className="py-2.5 px-3 sticky left-0 z-10 bg-white"
+                        className="py-2.5 px-3 sticky left-0 z-10 bg-white group-hover:bg-slate-50/80"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
@@ -586,60 +666,127 @@ export function CampaignTable({
                         />
                       </td>
 
-                      {/* Row actions */}
+                      {/* Sticky Col 2: State Switch (z-10, Fixes Glitch 10) */}
                       <td
-                        className="py-2.5 px-2 sticky left-10 z-10 bg-white text-center"
+                        className="py-2.5 px-2 sticky left-[40px] z-10 bg-white group-hover:bg-slate-50/80 text-center"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <RowMenu
-                          campaign={c}
-                          onStatusChange={async (id, nextStatus) => {
-                            onUpdateStatus(Number(id), nextStatus as CampaignState);
-                          }}
-                          onDuplicate={(cmp) => {
-                            onDuplicate(Number(cmp.id));
-                          }}
-                          onEditBudget={(cmp) => {
-                            setEditingBudgetId(Number(cmp.id));
-                            setEditingBudgetValue(String(cmp.daily_budget || ''));
-                          }}
-                        />
-                      </td>
-
-                      {/* Campaign Name */}
-                      <td className="py-2.5 px-3 sticky left-[68px] z-10 bg-white">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleExpandRow(c.id);
-                            }}
-                            className="p-0.5 text-slate-400 hover:text-slate-600 rounded"
-                            title={isExpanded ? 'Collapse ad groups' : 'Expand ad groups'}
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="w-3.5 h-3.5" />
-                            ) : (
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                          <Link
-                            href={`/campaigns/${c.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="font-medium text-slate-900 hover:text-primary transition-colors hover:underline truncate max-w-[280px]"
-                            title={c.name}
-                          >
-                            {c.name}
-                          </Link>
+                        <div
+                          title={
+                            isArchived
+                              ? 'Archived campaigns cannot be modified'
+                              : c.state === 'ENABLED'
+                              ? 'Click to pause'
+                              : 'Click to enable'
+                          }
+                        >
+                          <Switch
+                            size="sm"
+                            checked={c.state === 'ENABLED'}
+                            disabled={isArchived}
+                            onChange={(val) =>
+                              onUpdateStatus(c.id, val ? 'ENABLED' : 'PAUSED')
+                            }
+                            aria-label={`Toggle ${c.name}`}
+                          />
                         </div>
                       </td>
 
-                      {/* Status */}
+                      {/* Sticky Col 3: Campaign Name (z-10 with shadow border) */}
+                      <td
+                        className="py-2.5 px-3 sticky left-[96px] z-10 bg-white group-hover:bg-slate-50/80 shadow-[1px_0_0_0_var(--color-border-dim)]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandRow(c.id)}
+                              className="p-0.5 text-slate-400 hover:text-slate-600 rounded"
+                              title={isExpanded ? 'Collapse ad groups' : 'Expand ad groups'}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              ) : (
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                            <Link
+                              href={`/campaigns/${c.id}`}
+                              className="font-medium text-slate-900 hover:text-primary transition-colors hover:underline truncate max-w-[220px]"
+                              title={c.name}
+                            >
+                              {c.name}
+                            </Link>
+                          </div>
+
+                          {/* Zero-Jitter Name Inline Edit Popover (Glitch 3 & 10) */}
+                          {!isArchived && (
+                            <Popover
+                              open={editingNameId === c.id}
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  setEditingNameId(c.id);
+                                  setEditingNameVal(c.name);
+                                  setEditingNameErr(null);
+                                } else {
+                                  setEditingNameId(null);
+                                }
+                              }}
+                              trigger={
+                                <button
+                                  type="button"
+                                  className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-primary transition-opacity rounded hover:bg-slate-100"
+                                  title="Edit campaign name"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              }
+                            >
+                              <div className="w-72 p-3 text-xs font-mono space-y-2">
+                                <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 block">
+                                  Edit Campaign Name
+                                </span>
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  value={editingNameVal}
+                                  onChange={(e) => {
+                                    setEditingNameVal(e.target.value);
+                                    setEditingNameErr(null);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveName(c);
+                                    if (e.key === 'Escape') setEditingNameId(null);
+                                  }}
+                                  className="w-full px-2 py-1.5 border border-border-dim rounded text-xs focus:border-primary focus:outline-hidden"
+                                />
+                                {editingNameErr && <FieldError message={editingNameErr} />}
+                                <div className="flex justify-end gap-1.5 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingNameId(null)}
+                                    className="px-2 py-1 border border-border-dim rounded text-[11px]"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveName(c)}
+                                    className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            </Popover>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Delivery Status */}
                       {visibleColumns.includes('status') && (
-                        <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
-                          {getStatusBadge(c.state, c.id)}
-                        </td>
+                        <td className="py-2.5 px-3">{getDeliveryBadge(c)}</td>
                       )}
 
                       {/* Health */}
@@ -647,9 +794,368 @@ export function CampaignTable({
                         <td className="py-2.5 px-3">{getHealthBadge(c)}</td>
                       )}
 
+                      {/* Daily Budget (Fixed min-w, inline Popover + mini health bar) */}
+                      {visibleColumns.includes('daily_budget') && (
+                        <td
+                          className="py-2.5 px-3 text-right min-w-[140px]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex flex-col items-end gap-0.5">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {!isArchived ? (
+                                <Popover
+                                  open={editingBudgetId === c.id}
+                                  onOpenChange={(open) => {
+                                    if (open) {
+                                      setEditingBudgetId(c.id);
+                                      setEditingBudgetVal(c.daily_budget);
+                                      setEditingBudgetErr(null);
+                                    } else {
+                                      setEditingBudgetId(null);
+                                    }
+                                  }}
+                                  trigger={
+                                    <button
+                                      type="button"
+                                      className="font-medium hover:text-primary hover:underline tabular-nums text-slate-900 inline-flex items-center gap-1"
+                                      title="Click to edit budget"
+                                    >
+                                      <span>{money(c.daily_budget)}</span>
+                                      <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-slate-400" />
+                                    </button>
+                                  }
+                                >
+                                  <div className="w-64 p-3 text-xs font-mono space-y-2.5">
+                                    <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 block">
+                                      Daily Budget (₹)
+                                    </span>
+                                    <MoneyInput
+                                      value={editingBudgetVal}
+                                      onChange={(val) => {
+                                        setEditingBudgetVal(val || 100);
+                                        setEditingBudgetErr(null);
+                                      }}
+                                      symbol="₹"
+                                      min={100}
+                                      helperText="Min ₹100.00"
+                                    />
+                                    {editingBudgetErr && (
+                                      <FieldError message={editingBudgetErr} />
+                                    )}
+                                    <div className="flex items-center gap-1 pt-1">
+                                      {[10, 20, 50].map((inc) => (
+                                        <button
+                                          key={inc}
+                                          type="button"
+                                          onClick={() =>
+                                            setEditingBudgetVal(
+                                              Math.round(c.daily_budget * (1 + inc / 100))
+                                            )
+                                          }
+                                          className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-[10px] text-slate-700"
+                                        >
+                                          +{inc}%
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <div className="flex justify-end gap-1.5 pt-1 border-t border-border-dim">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingBudgetId(null)}
+                                        className="px-2 py-1 border border-border-dim rounded text-[11px]"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveBudget(c)}
+                                        className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </div>
+                                </Popover>
+                              ) : (
+                                <span className="font-medium text-slate-400 tabular-nums">
+                                  {money(c.daily_budget)}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Mini Budget Utilization Bar */}
+                            <div className="w-24 bg-slate-100 rounded-full h-1 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${
+                                  isAlmostOutOfBudget ? 'bg-spend' : 'bg-primary'
+                                }`}
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, utilizationPct))}%`,
+                                }}
+                              />
+                            </div>
+
+                            {/* Almost Out of Budget Badge + Quick +20% Button */}
+                            {isAlmostOutOfBudget && !isArchived && (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[10px] text-spend font-medium">
+                                  {utilizationPct >= 100 ? 'Exhausted' : 'Almost out'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onUpdateBudget(c.id, Math.round(c.daily_budget * 1.2))
+                                  }
+                                  className="px-1 py-0.2 bg-red-50 hover:bg-red-100 text-spend border border-red-200 rounded text-[9px] font-medium"
+                                  title="Increase budget by 20%"
+                                >
+                                  +20%
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      )}
+
+                      {/* Bidding Strategy Popover */}
+                      {visibleColumns.includes('bidding_strategy') && (
+                        <td className="py-2.5 px-3 min-w-[130px]" onClick={(e) => e.stopPropagation()}>
+                          {!isArchived ? (
+                            <Popover
+                              open={editingStrategyId === c.id}
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  setEditingStrategyId(c.id);
+                                  setEditingStrategyVal(c.bidding_strategy || 'DOWN_ONLY');
+                                } else {
+                                  setEditingStrategyId(null);
+                                }
+                              }}
+                              trigger={
+                                <button
+                                  type="button"
+                                  className="text-left text-slate-700 hover:text-primary transition-colors truncate max-w-[130px] inline-flex items-center gap-1"
+                                >
+                                  <span className="truncate">
+                                    {String(c.bidding_strategy).toUpperCase() === 'UP_AND_DOWN'
+                                      ? 'Up & Down'
+                                      : String(c.bidding_strategy).toUpperCase() === 'FIXED'
+                                      ? 'Fixed'
+                                      : 'Down only'}
+                                  </span>
+                                  <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-slate-400 shrink-0" />
+                                </button>
+                              }
+                            >
+                              <div className="w-64 p-3 text-xs font-mono space-y-2">
+                                <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 block">
+                                  Bidding Strategy
+                                </span>
+                                <div className="space-y-1.5">
+                                  {[
+                                    { value: 'DOWN_ONLY', title: 'Dynamic down only' },
+                                    { value: 'UP_AND_DOWN', title: 'Dynamic up & down' },
+                                    { value: 'FIXED', title: 'Fixed bids' },
+                                  ].map((st) => (
+                                    <RadioCard
+                                      key={st.value}
+                                      name="bidding_strategy_radio"
+                                      value={st.value}
+                                      selected={editingStrategyVal === st.value}
+                                      onChange={() => setEditingStrategyVal(st.value)}
+                                      title={st.title}
+                                    />
+                                  ))}
+                                </div>
+                                <div className="flex justify-end gap-1.5 pt-2 border-t border-border-dim">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingStrategyId(null)}
+                                    className="px-2 py-1 border border-border-dim rounded text-[11px]"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveStrategy(c)}
+                                    className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            </Popover>
+                          ) : (
+                            <span className="text-slate-400">
+                              {c.bidding_strategy || 'DOWN_ONLY'}
+                            </span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Placement Multipliers Popover */}
+                      {visibleColumns.includes('placement_multipliers') && (
+                        <td className="py-2.5 px-3 min-w-[130px]" onClick={(e) => e.stopPropagation()}>
+                          {!isArchived ? (
+                            <Popover
+                              open={editingPlacementsId === c.id}
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  setEditingPlacementsId(c.id);
+                                  setEditingTopPct(c.placement_top_of_search_pct ?? 0);
+                                  setEditingPagesPct(c.placement_product_pages_pct ?? 0);
+                                } else {
+                                  setEditingPlacementsId(null);
+                                }
+                              }}
+                              trigger={
+                                <button
+                                  type="button"
+                                  className="text-left text-slate-700 hover:text-primary transition-colors inline-flex items-center gap-1"
+                                >
+                                  <span>
+                                    Top: +{c.placement_top_of_search_pct ?? 0}%
+                                  </span>
+                                  <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-slate-400" />
+                                </button>
+                              }
+                            >
+                              <div className="w-64 p-3 text-xs font-mono space-y-2.5">
+                                <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 block">
+                                  Placement Multipliers
+                                </span>
+                                <div>
+                                  <label className="block text-[11px] text-slate-500 mb-1">
+                                    Top of Search (first page) %
+                                  </label>
+                                  <PercentInput
+                                    value={editingTopPct}
+                                    onChange={(val) => setEditingTopPct(val ?? 0)}
+                                    min={0}
+                                    max={900}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] text-slate-500 mb-1">
+                                    Product Pages %
+                                  </label>
+                                  <PercentInput
+                                    value={editingPagesPct}
+                                    onChange={(val) => setEditingPagesPct(val ?? 0)}
+                                    min={0}
+                                    max={900}
+                                  />
+                                </div>
+                                <div className="p-2 bg-slate-50 rounded border border-border-dim text-[11px] text-slate-600">
+                                  Max Effective CPC:{' '}
+                                  <span className="font-bold text-slate-900">
+                                    {money(
+                                      calculateMaxEffectiveBid(
+                                        15.0,
+                                        editingTopPct,
+                                        (c.bidding_strategy as BiddingStrategy) || 'DOWN_ONLY',
+                                        'TOP_OF_SEARCH'
+                                      )
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex justify-end gap-1.5 pt-1 border-t border-border-dim">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingPlacementsId(null)}
+                                    className="px-2 py-1 border border-border-dim rounded text-[11px]"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSavePlacements(c)}
+                                    className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            </Popover>
+                          ) : (
+                            <span className="text-slate-400">
+                              Top: +{c.placement_top_of_search_pct ?? 0}%
+                            </span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Targeting Type */}
+                      {visibleColumns.includes('targeting_type') && (
+                        <td className="py-2.5 px-3 text-slate-600">{c.targeting_type}</td>
+                      )}
+
                       {/* Start Date */}
                       {visibleColumns.includes('start_date') && (
-                        <td className="py-2.5 px-3 text-slate-600">{c.start_date}</td>
+                        <td className="py-2.5 px-3 text-slate-600" onClick={(e) => e.stopPropagation()}>
+                          {!isArchived ? (
+                            <Popover
+                              open={editingDatesId === c.id}
+                              onOpenChange={(open) => {
+                                if (open) {
+                                  setEditingDatesId(c.id);
+                                  setEditingStartDate(c.start_date || '');
+                                  setEditingEndDate(c.end_date || null);
+                                } else {
+                                  setEditingDatesId(null);
+                                }
+                              }}
+                              trigger={
+                                <button
+                                  type="button"
+                                  className="text-left hover:text-primary inline-flex items-center gap-1"
+                                >
+                                  <span>{c.start_date || '—'}</span>
+                                  <Calendar className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-slate-400" />
+                                </button>
+                              }
+                            >
+                              <div className="w-64 p-3 text-xs font-mono space-y-2.5">
+                                <span className="font-bold uppercase tracking-wider text-[11px] text-slate-600 block">
+                                  Campaign Dates
+                                </span>
+                                <div>
+                                  <label className="block text-[11px] text-slate-500 mb-1">Start Date</label>
+                                  <DatePicker
+                                    value={editingStartDate}
+                                    onChange={(d) => setEditingStartDate(d || '')}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[11px] text-slate-500 mb-1">End Date (optional)</label>
+                                  <DatePicker
+                                    value={editingEndDate || ''}
+                                    onChange={(d) => setEditingEndDate(d || null)}
+                                    minDate={editingStartDate}
+                                  />
+                                </div>
+                                <div className="flex justify-end gap-1.5 pt-1 border-t border-border-dim">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingDatesId(null)}
+                                    className="px-2 py-1 border border-border-dim rounded text-[11px]"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveDates(c)}
+                                    className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+                                  >
+                                    Save
+                                  </button>
+                                </div>
+                              </div>
+                            </Popover>
+                          ) : (
+                            c.start_date || '—'
+                          )}
+                        </td>
                       )}
 
                       {/* End Date */}
@@ -657,58 +1163,7 @@ export function CampaignTable({
                         <td className="py-2.5 px-3 text-slate-600">{c.end_date || 'No end date'}</td>
                       )}
 
-                      {/* Daily Budget (inline editable) */}
-                      {visibleColumns.includes('daily_budget') && (
-                        <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          {editingBudgetId === c.id ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number"
-                                autoFocus
-                                step="any"
-                                value={editingBudgetValue}
-                                onChange={(e) => setEditingBudgetValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSaveBudget(c.id);
-                                  if (e.key === 'Escape') setEditingBudgetId(null);
-                                }}
-                                className="w-20 px-1.5 py-0.5 text-xs border border-primary rounded text-right font-mono"
-                              />
-                              <button
-                                type="button"
-                                disabled={savingBudget}
-                                onClick={() => handleSaveBudget(c.id)}
-                                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                              >
-                                <Check className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={(e) => handleStartBudgetEdit(c, e)}
-                              className="font-medium hover:text-primary hover:underline tabular-nums"
-                              title="Click to edit budget"
-                            >
-                              {money(c.daily_budget, rules)}
-                            </button>
-                          )}
-                        </td>
-                      )}
-
-                      {/* Targeting */}
-                      {visibleColumns.includes('targeting_type') && (
-                        <td className="py-2.5 px-3 text-slate-600">{c.targeting_type}</td>
-                      )}
-
-                      {/* Strategy */}
-                      {visibleColumns.includes('bidding_strategy') && (
-                        <td className="py-2.5 px-3 text-slate-600 text-[11px] truncate max-w-[140px]">
-                          {c.bidding_strategy}
-                        </td>
-                      )}
-
-                      {/* Metrics */}
+                      {/* Metrics (Strict Indian Currency / en-IN format) */}
                       {visibleColumns.includes('impressions') && (
                         <td className="py-2.5 px-3 text-right tabular-nums">{num(c.impressions)}</td>
                       )}
@@ -723,12 +1178,12 @@ export function CampaignTable({
 
                       {visibleColumns.includes('spend') && (
                         <td className="py-2.5 px-3 text-right tabular-nums font-semibold text-spend">
-                          {money(c.spend, rules)}
+                          {money(c.spend)}
                         </td>
                       )}
 
                       {visibleColumns.includes('cpc') && (
-                        <td className="py-2.5 px-3 text-right tabular-nums">{money(c.cpc, rules)}</td>
+                        <td className="py-2.5 px-3 text-right tabular-nums">{money(c.cpc)}</td>
                       )}
 
                       {visibleColumns.includes('orders') && (
@@ -737,16 +1192,22 @@ export function CampaignTable({
 
                       {visibleColumns.includes('sales') && (
                         <td className="py-2.5 px-3 text-right tabular-nums font-semibold text-sales">
-                          {money(c.sales, rules)}
+                          {money(c.sales)}
                         </td>
                       )}
 
+                      {/* ACOS Column (Fixes Glitch 9: Bleeding INF Badge) */}
                       {visibleColumns.includes('acos') && (
                         <td className="py-2.5 px-3 text-right tabular-nums">
-                          {c.acos !== null ? (
+                          {c.acos_is_infinite ? (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-red-50 text-spend border border-red-200"
+                              title={`${money(c.spend)} spent with 0 sales`}
+                            >
+                              INF
+                            </span>
+                          ) : c.acos !== null && c.acos !== undefined ? (
                             pct(c.acos)
-                          ) : c.spend > 0 ? (
-                            <span className="text-spend text-[10px]">No sales</span>
                           ) : (
                             '—'
                           )}
@@ -759,11 +1220,29 @@ export function CampaignTable({
 
                       {visibleColumns.includes('budget_utilization') && (
                         <td className="py-2.5 px-3 text-right tabular-nums">
-                          {c.budget_utilization !== undefined && c.budget_utilization !== null
-                            ? `${c.budget_utilization.toFixed(1)}%`
-                            : '—'}
+                          {utilizationPct.toFixed(1)}%
                         </td>
                       )}
+
+                      {/* Actions Column */}
+                      <td
+                        className="py-2.5 px-2 text-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <RowMenu
+                          campaign={c}
+                          onStatusChange={async (id, nextStatus) => {
+                            onUpdateStatus(Number(id), nextStatus as CampaignState);
+                          }}
+                          onDuplicate={(cmp) => {
+                            onDuplicate(Number(cmp.id));
+                          }}
+                          onEditBudget={(cmp) => {
+                            setEditingBudgetId(Number(cmp.id));
+                            setEditingBudgetVal(cmp.daily_budget || 100);
+                          }}
+                        />
+                      </td>
                     </tr>
 
                     {/* Expandable nested ad groups row */}
@@ -800,15 +1279,15 @@ export function CampaignTable({
                                       <td className="py-1 px-2 font-medium text-slate-800">{ag.name}</td>
                                       <td className="py-1 px-2 text-slate-500">{ag.state}</td>
                                       <td className="py-1 px-2 text-right tabular-nums">
-                                        {money(ag.default_bid, rules)}
+                                        {money(ag.default_bid)}
                                       </td>
                                       <td className="py-1 px-2 text-right tabular-nums">{num(ag.impressions)}</td>
                                       <td className="py-1 px-2 text-right tabular-nums">{num(ag.clicks)}</td>
                                       <td className="py-1 px-2 text-right tabular-nums font-semibold text-spend">
-                                        {money(ag.spend, rules)}
+                                        {money(ag.spend)}
                                       </td>
                                       <td className="py-1 px-2 text-right tabular-nums font-semibold text-sales">
-                                        {money(ag.sales, rules)}
+                                        {money(ag.sales)}
                                       </td>
                                       <td className="py-1 px-2 text-right tabular-nums">{num(ag.orders)}</td>
                                       <td className="py-1 px-2 text-right tabular-nums">{pct(ag.acos)}</td>
@@ -828,23 +1307,24 @@ export function CampaignTable({
             )}
           </tbody>
 
-          {/* Pinned Totals Row */}
+          {/* Pinned Totals Row (Fixes Glitch 8: Weighted Totals, Glitch 2: Sticky corners z-30) */}
           {totals && campaigns.length > 0 && (
             <tfoot className="bg-slate-50 border-t-2 border-border-dim font-bold text-text-main sticky bottom-0 z-20">
               <tr>
                 <td className="py-2.5 px-3 sticky left-0 z-30 bg-slate-50" />
-                <td className="py-2.5 px-2 sticky left-10 z-30 bg-slate-50" />
-                <td className="py-2.5 px-3 sticky left-[68px] z-30 bg-slate-50">
-                  Total ({totalCount} campaigns)
+                <td className="py-2.5 px-2 sticky left-[40px] z-30 bg-slate-50" />
+                <td className="py-2.5 px-3 sticky left-[96px] z-30 bg-slate-50 shadow-[1px_0_0_0_var(--color-border-dim)]">
+                  Total ({num(totalCount)} campaigns)
                 </td>
 
                 {visibleColumns.includes('status') && <td className="py-2.5 px-3" />}
                 {visibleColumns.includes('health') && <td className="py-2.5 px-3" />}
+                {visibleColumns.includes('daily_budget') && <td className="py-2.5 px-3 text-right" />}
+                {visibleColumns.includes('bidding_strategy') && <td className="py-2.5 px-3" />}
+                {visibleColumns.includes('placement_multipliers') && <td className="py-2.5 px-3" />}
+                {visibleColumns.includes('targeting_type') && <td className="py-2.5 px-3" />}
                 {visibleColumns.includes('start_date') && <td className="py-2.5 px-3" />}
                 {visibleColumns.includes('end_date') && <td className="py-2.5 px-3" />}
-                {visibleColumns.includes('daily_budget') && <td className="py-2.5 px-3 text-right" />}
-                {visibleColumns.includes('targeting_type') && <td className="py-2.5 px-3" />}
-                {visibleColumns.includes('bidding_strategy') && <td className="py-2.5 px-3" />}
 
                 {visibleColumns.includes('impressions') && (
                   <td className="py-2.5 px-3 text-right tabular-nums">{num(totals.impressions)}</td>
@@ -857,22 +1337,30 @@ export function CampaignTable({
                 )}
                 {visibleColumns.includes('spend') && (
                   <td className="py-2.5 px-3 text-right tabular-nums text-spend">
-                    {money(totals.spend, rules)}
+                    {money(totals.spend)}
                   </td>
                 )}
                 {visibleColumns.includes('cpc') && (
-                  <td className="py-2.5 px-3 text-right tabular-nums">{money(totals.cpc, rules)}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums">{money(totals.cpc)}</td>
                 )}
                 {visibleColumns.includes('orders') && (
                   <td className="py-2.5 px-3 text-right tabular-nums">{num(totals.orders)}</td>
                 )}
                 {visibleColumns.includes('sales') && (
                   <td className="py-2.5 px-3 text-right tabular-nums text-sales">
-                    {money(totals.sales, rules)}
+                    {money(totals.sales)}
                   </td>
                 )}
                 {visibleColumns.includes('acos') && (
-                  <td className="py-2.5 px-3 text-right tabular-nums">{pct(totals.acos)}</td>
+                  <td className="py-2.5 px-3 text-right tabular-nums">
+                    {(totals as any).acos_is_infinite || (totals.spend > 0 && totals.sales === 0) ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-red-50 text-spend border border-red-200">
+                        INF
+                      </span>
+                    ) : (
+                      pct(totals.acos)
+                    )}
+                  </td>
                 )}
                 {visibleColumns.includes('roas') && (
                   <td className="py-2.5 px-3 text-right tabular-nums">{ratio(totals.roas)}</td>
@@ -880,6 +1368,7 @@ export function CampaignTable({
                 {visibleColumns.includes('budget_utilization') && (
                   <td className="py-2.5 px-3 text-right tabular-nums">—</td>
                 )}
+                <td className="py-2.5 px-2" />
               </tr>
             </tfoot>
           )}
@@ -907,7 +1396,7 @@ export function CampaignTable({
             </select>
           </div>
           <span>
-            Showing {startIndex}–{endIndex} of {totalCount}
+            Showing {startIndex}–{endIndex} of {num(totalCount)}
           </span>
         </div>
 
@@ -950,9 +1439,10 @@ export function CampaignTable({
         </div>
       </div>
 
-      {/* Bulk action floating bar */}
+      {/* Bulk action floating bar (Glitch 7) */}
       <BulkBar
         selectedIds={selectedIds}
+        campaigns={campaigns}
         onAction={onBulkAction}
         onClearSelection={() => setSelectedIds([])}
       />

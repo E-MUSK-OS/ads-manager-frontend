@@ -456,3 +456,144 @@ export async function patchCampaign(
     signal,
   });
 }
+
+export async function getCampaignPlacements(
+  campaignId: number,
+  params?: { start_date?: string; end_date?: string },
+  signal?: AbortSignal
+): Promise<import('./types/campaign').PlacementItem[]> {
+  const query = buildQuery(params || {});
+  return apiClient<import('./types/campaign').PlacementItem[]>(`/campaigns/${campaignId}/placements${query}`, { signal });
+}
+
+export async function patchCampaignPlacements(
+  campaignId: number,
+  data: { top_of_search_pct?: number; product_pages_pct?: number; rest_of_search_pct?: number },
+  signal?: AbortSignal
+): Promise<import('./types/campaign').PlacementItem[]> {
+  return apiClient<import('./types/campaign').PlacementItem[]>(`/campaigns/${campaignId}/placements`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+    signal,
+  });
+}
+
+export async function getCampaignTargets(
+  campaignId: number,
+  params?: { start_date?: string; end_date?: string; kind?: string },
+  signal?: AbortSignal
+): Promise<any[]> {
+  const query = buildQuery(params || {});
+  return apiClient<any[]>(`/campaigns/${campaignId}/targets${query}`, { signal });
+}
+
+export async function patchCampaignTarget(
+  campaignId: number,
+  targetId: number,
+  data: { bid?: number; state?: string },
+  signal?: AbortSignal
+): Promise<any> {
+  return apiClient<any>(`/campaigns/${campaignId}/targets/${targetId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+    signal,
+  });
+}
+
+export async function getCampaignNegatives(
+  campaignId: number,
+  signal?: AbortSignal
+): Promise<{ negative_keywords: any[]; negative_brands: string[]; items: any[] }> {
+  return apiClient<{ negative_keywords: any[]; negative_brands: string[]; items: any[] }>(`/campaigns/${campaignId}/negatives`, { signal });
+}
+
+export async function createCampaignNegative(
+  campaignId: number,
+  data: { keyword_text?: string; match_type?: string; brand?: string; level?: string },
+  signal?: AbortSignal
+): Promise<any> {
+  return apiClient<any>(`/campaigns/${campaignId}/negatives`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+    signal,
+  });
+}
+
+export async function deleteCampaignNegative(
+  campaignId: number,
+  negId: string | number,
+  signal?: AbortSignal
+): Promise<{ status: string }> {
+  return apiClient<{ status: string }>(`/campaigns/${campaignId}/negatives/${negId}`, {
+    method: 'DELETE',
+    signal,
+  });
+}
+
+export async function harvestSearchTerm(
+  campaignId: number,
+  data: { search_term: string; match_type: string; bid: number; ad_group_id?: number },
+  signal?: AbortSignal
+): Promise<any> {
+  return apiClient<any>(`/campaigns/${campaignId}/search-terms/harvest`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+    signal,
+  });
+}
+
+export async function negateSearchTerm(
+  campaignId: number,
+  data: { search_term: string; match_type: string; level?: string; ad_group_id?: number },
+  signal?: AbortSignal
+): Promise<any> {
+  return apiClient<any>(`/campaigns/${campaignId}/search-terms/negate`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+    signal,
+  });
+}
+
+export async function getCampaignHistory(
+  campaignId: number,
+  signal?: AbortSignal
+): Promise<import('./types/campaign').CampaignHistoryItem[]> {
+  return apiClient<import('./types/campaign').CampaignHistoryItem[]>(`/campaigns/${campaignId}/history`, { signal });
+}
+
+export async function launchCampaignWizard(
+  data: Record<string, any>,
+  signal?: AbortSignal
+): Promise<any> {
+  return apiClient<any>('/campaigns/wizard', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    signal,
+  });
+}
+
+export async function getCampaignsMeta(
+  adsAccountId: number,
+  signal?: AbortSignal
+): Promise<{
+  currency: { code: string; symbol: string; locale: string };
+  limits: {
+    min_daily_budget: number;
+    max_daily_budget: number;
+    min_bid: number;
+    max_bid: number;
+    default_bid: number;
+  };
+  today: string;
+  portfolios: string[];
+  status_counts: {
+    ALL: number;
+    DELIVERING: number;
+    OUT_OF_BUDGET: number;
+    PAUSED: number;
+    ARCHIVED: number;
+    DRAFTS: number;
+  };
+}> {
+  return apiClient(`/campaigns/meta?ads_account_id=${adsAccountId}`, { signal });
+}

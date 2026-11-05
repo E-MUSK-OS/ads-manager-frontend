@@ -14,6 +14,7 @@ import {
 import { useActiveAccount } from '@/lib/useActiveAccount';
 import {
   createCampaign,
+  launchCampaignWizard,
   createCampaignDraft,
   updateCampaignDraft,
   deleteCampaignDraft,
@@ -234,9 +235,12 @@ function CreateCampaignContent() {
 
     const payload = toPayload(draft, rules);
     payload.state = state;
+    if (serverDraftId) {
+      (payload as any).draft_id = serverDraftId;
+    }
 
     try {
-      const res = await createCampaign(payload);
+      const res = await launchCampaignWizard(payload);
       showToast({
         title: 'Campaign created',
         message: `Campaign "${res.name}" launched successfully as ${state.toLowerCase()}.`,

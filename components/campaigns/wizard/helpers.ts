@@ -104,6 +104,11 @@ export function toPayload(d: CampaignDraft, rules?: MarketplaceRules): CampaignC
     placement_top_pct: d.details.placements.top ?? 0,
     placement_rest_pct: d.details.placements.rest ?? 0,
     placement_product_page_pct: d.details.placements.productPage ?? 0,
+    placement_top_of_search_pct: d.details.placements.top ?? 0,
+    placement_rest_of_search_pct: d.details.placements.rest ?? 0,
+    placement_product_pages_pct: d.details.placements.productPage ?? 0,
+    portfolio_name: d.details.portfolio || undefined,
+    draft_id: (d as any).draft_id,
     product_ids: d.products.selected.map((p) => p.id),
     ad_groups: [
       {
@@ -320,4 +325,56 @@ export function validateStep(
     errors,
     warnings,
   };
+}
+
+export type BiddingStrategy = 'DOWN_ONLY' | 'UP_AND_DOWN' | 'FIXED';
+export type PlacementType = 'TOP_OF_SEARCH' | 'REST_OF_SEARCH' | 'PRODUCT_PAGES';
+export type MetricKey =
+  | 'spend'
+  | 'sales'
+  | 'acos'
+  | 'roas'
+  | 'impressions'
+  | 'clicks'
+  | 'ctr'
+  | 'cpc'
+  | 'orders'
+  | 'cvr';
+
+export function calculateMaxEffectiveBid(
+  baseBid: number,
+  placementPct: number,
+  strategy: BiddingStrategy,
+  placement: PlacementType
+): number {
+  const clamped = Math.min(900, Math.max(0, Number(placementPct) || 0));
+  const withPlacement = (Number(baseBid) || 0) * (1 + clamped / 100);
+  const dynamicFactor =
+    strategy === 'UP_AND_DOWN' ? (placement === 'TOP_OF_SEARCH' ? 2.0 : 1.5) : 1.0;
+  return Number((withPlacement * dynamicFactor).toFixed(2));
+}
+
+export function isDeltaFavorable(metric: MetricKey, delta: number): boolean {
+  if (delta === 0) return true;
+  if (metric === 'acos' || metric === 'cpc') return delta < 0; // Lower ACOS & CPC is favorable
+  return delta > 0;
+}
+
+export function findKeywordConflicts(
+  keywords: Array<{ text: string; match: string }>,
+  negativeKeywords: Array<{ text: string; match: string }>
+): string[] {
+  const exactPositives = new Set(
+    keywords
+      .filter((k) => k.match === 'EXACT')
+      .map((k) => k.text.trim().toLowerCase())
+  );
+
+  const conflicts: string[] = [];
+  for (const neg of negativeKeywords) {
+    if (neg.match === 'NEGATIVE_EXACT' && exactPositives.has(neg.text.trim().toLowerCase())) {
+      conflicts.push(neg.text.trim().toLowerCase());
+    }
+  }
+  return conflicts;
 }

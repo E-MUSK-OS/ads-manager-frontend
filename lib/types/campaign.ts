@@ -1,4 +1,11 @@
-export type Strategy = 'AUTO_FOR_SALES' | 'LEGACY_FOR_SALES' | 'MANUAL';
+export type Strategy =
+  | 'DOWN_ONLY'
+  | 'UP_AND_DOWN'
+  | 'FIXED'
+  | 'AUTO_FOR_SALES'
+  | 'LEGACY_FOR_SALES'
+  | 'MANUAL'
+  | (string & {});
 export type Site = 'AMAZON_AND_BEYOND' | 'AMAZON_BUSINESS';
 export type Match = 'BROAD' | 'PHRASE' | 'EXACT';
 export type NegMatch = 'NEGATIVE_EXACT' | 'NEGATIVE_PHRASE';
@@ -71,26 +78,38 @@ export interface CampaignMetrics {
 export interface CampaignItem extends CampaignMetrics {
   id: number;
   ads_account_id: number;
+  amazon_campaign_id?: string;
   name: string;
   state: CampaignState;
+  delivery_status?: string;
   targeting_type: TargetingType;
   campaign_type: string;
+  portfolio_name?: string | null;
   site: Site;
   start_date: string;
   end_date: string | null;
   daily_budget: number;
+  today_spend?: number;
+  budget_utilization_pct?: number;
   target_acos: number | null;
   bidding_strategy: Strategy;
+  placement_top_of_search_pct?: number;
+  placement_product_pages_pct?: number;
+  placement_rest_of_search_pct?: number;
   placement_top_pct: number;
   placement_rest_pct: number;
   placement_product_page_pct: number;
+  max_effective_top_of_search_bid?: number;
   status_label?: string;
   health: HealthStatus;
   health_label?: string;
   health_color?: 'red' | 'amber' | 'green' | 'blue' | 'slate';
   budget_utilization?: number | null;
   ad_group_count?: number;
+  ad_groups_count?: number;
   keyword_count?: number;
+  products_count?: number;
+  acos_is_infinite?: boolean;
 }
 
 export interface ReportTotals extends CampaignMetrics {
@@ -179,6 +198,7 @@ export interface CampaignDraft {
   maxStepReached: number;
   details: {
     name: string;
+    portfolio?: string;
     startDate: string;
     endDate: string | null;
     dailyBudget: number | null;
@@ -270,6 +290,11 @@ export interface CampaignCreatePayload {
   placement_top_pct: number;
   placement_rest_pct: number;
   placement_product_page_pct: number;
+  placement_top_of_search_pct?: number;
+  placement_rest_of_search_pct?: number;
+  placement_product_pages_pct?: number;
+  portfolio_name?: string;
+  draft_id?: number;
   product_ids: number[];
   ad_groups: AdGroupPayload[];
   negative_keywords: NegativeKeywordPayload[];
@@ -292,6 +317,43 @@ export interface ForecastResponse {
   spend: { low: number; high: number } | null;
   basis: 'history' | 'default';
   is_estimate: true;
+  est_daily_impressions?: [number, number];
+  est_daily_clicks?: [number, number];
+  est_daily_spend?: [number, number];
+  est_daily_orders?: [number, number];
+  est_acos_pct?: number;
+  max_effective_cpc?: number;
+  warnings?: string[];
+}
+
+export interface PlacementItem {
+  placement: 'TOP_OF_SEARCH' | 'REST_OF_SEARCH' | 'PRODUCT_PAGES';
+  label: string;
+  modifier_pct: number;
+  base_bid: number;
+  max_effective_bid: number;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  sales: number;
+  orders: number;
+  ctr: number | null;
+  cpc: number | null;
+  cvr: number | null;
+  acos: number | null;
+  roas: number | null;
+  acos_is_infinite?: boolean;
+}
+
+export interface CampaignHistoryItem {
+  id: string;
+  event_type: string;
+  event_title: string;
+  description: string | null;
+  previous_value: string | null;
+  new_value: string | null;
+  created_at: string | null;
+  user_id?: number | null;
 }
 
 export interface BidSuggestionKeywordResult {
@@ -355,6 +417,13 @@ export interface SearchTermItem {
   impressions: number;
   spend: number;
   sales: number;
+  orders?: number;
+  keyword_text?: string;
+  match_type?: string;
+  ctr?: number;
+  cpc?: number;
+  acos?: number | null;
+  acos_is_infinite?: boolean;
   date: string;
 }
 

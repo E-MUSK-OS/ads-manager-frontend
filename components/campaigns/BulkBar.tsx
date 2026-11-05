@@ -1,200 +1,466 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Play, Pause, Archive, DollarSign, Percent, X } from 'lucide-react';
+import {
+  Play,
+  Pause,
+  Archive,
+  IndianRupee,
+  Percent,
+  SlidersHorizontal,
+  Download,
+  X,
+} from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Popover } from '@/components/ui/Popover';
-import { useActiveAccount } from '@/lib/useActiveAccount';
+import { Modal } from '@/components/ui/Modal';
+import { MoneyInput } from '@/components/ui/MoneyInput';
+import { PercentInput } from '@/components/ui/PercentInput';
+import { money, pct, ratio, num } from '@/lib/format';
+import type { CampaignItem } from '@/lib/types/campaign';
 
-interface BulkBarProps {
+export interface BulkBarProps {
   selectedIds: number[];
-  onAction: (ids: number[], action: string, value?: number) => void;
+  campaigns?: CampaignItem[];
+  onAction: (
+    ids: number[],
+    action: string,
+    value?: number | string,
+    extra?: {
+      placement?: 'TOP_OF_SEARCH' | 'PRODUCT_PAGES' | 'REST_OF_SEARCH';
+      min_budget_floor?: number;
+      max_budget_cap?: number;
+    }
+  ) => void;
   onClearSelection: () => void;
 }
 
-export function BulkBar({ selectedIds, onAction, onClearSelection }: BulkBarProps) {
-  const { rules } = useActiveAccount();
+type BudgetMode =
+  | 'BUDGET_SET'
+  | 'BUDGET_INCREASE_PCT'
+  | 'BUDGET_DECREASE_PCT'
+  | 'BUDGET_INCREASE_AMT'
+  | 'BUDGET_DECREASE_AMT';
+
+export function BulkBar({
+  selectedIds,
+  campaigns = [],
+  onAction,
+  onClearSelection,
+}: BulkBarProps) {
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
-  const [budgetPopoverOpen, setBudgetPopoverOpen] = useState(false);
-  const [budgetValue, setBudgetValue] = useState<string>('');
-  const [adjustPopoverOpen, setAdjustPopoverOpen] = useState(false);
-  const [adjustPct, setAdjustPct] = useState<string>('');
+  const [budgetModalOpen, setBudgetModalOpen] = useState(false);
+  const [budgetMode, setBudgetMode] = useState<BudgetMode>('BUDGET_SET');
+  const [budgetValue, setBudgetValue] = useState<number>(500);
+  const [budgetFloor, setBudgetFloor] = useState<number>(100);
+  const [budgetCap, setBudgetCap] = useState<number | undefined>(undefined);
+
+  const [strategyPopoverOpen, setStrategyPopoverOpen] = useState(false);
+  const [selectedStrategy, setSelectedStrategy] = useState<'DOWN_ONLY' | 'UP_AND_DOWN' | 'FIXED'>(
+    'DOWN_ONLY'
+  );
+
+  const [placementPopoverOpen, setPlacementPopoverOpen] = useState(false);
+  const [placementTarget, setPlacementTarget] = useState<
+    'TOP_OF_SEARCH' | 'PRODUCT_PAGES' | 'REST_OF_SEARCH'
+  >('TOP_OF_SEARCH');
+  const [placementModifier, setPlacementModifier] = useState<number>(50);
 
   if (selectedIds.length === 0) return null;
 
-  const handleSetBudget = () => {
-    const num = Number(budgetValue);
-    if (!isNaN(num) && num > 0) {
-      onAction(selectedIds, 'SET_BUDGET', num);
-      setBudgetPopoverOpen(false);
-      setBudgetValue('');
-    }
+  const handleApplyBudget = () => {
+    onAction(selectedIds, budgetMode, budgetValue, {
+      min_budget_floor: budgetFloor || 100,
+      max_budget_cap: budgetCap,
+    });
+    setBudgetModalOpen(false);
   };
 
-  const handleAdjustBudget = () => {
-    const num = Number(adjustPct);
-    if (!isNaN(num) && num !== 0) {
-      onAction(selectedIds, 'ADJUST_BUDGET_PCT', num);
-      setAdjustPopoverOpen(false);
-      setAdjustPct('');
-    }
+  const handleApplyStrategy = () => {
+    onAction(selectedIds, 'SET_BIDDING_STRATEGY', selectedStrategy);
+    setStrategyPopoverOpen(false);
+  };
+
+  const handleApplyPlacement = () => {
+    onAction(selectedIds, 'SET_PLACEMENT_PCT', placementModifier, {
+      placement: placementTarget,
+    });
+    setPlacementPopoverOpen(false);
+  };
+
+  const handleExportSelectedCsv = () => {
+    const selectedRows = campaigns.filter((c) => selectedIds.includes(c.id));
+    if (selectedRows.length === 0) return;
+
+    const headers = [
+      'Campaign ID',
+      'Name',
+      'State',
+      'Delivery Status',
+      'Daily Budget (INR)',
+      'Spend (INR)',
+      'Sales (INR)',
+      'Orders',
+      'Clicks',
+      'Impressions',
+      'CTR (%)',
+      'CPC (INR)',
+      'ACOS (%)',
+      'ROAS',
+      'Bidding Strategy',
+      'Top of Search (%)',
+      'Product Pages (%)',
+    ];
+
+    const rows = selectedRows.map((c) => [
+      c.id,
+      `"${c.name.replace(/"/g, '""')}"`,
+      c.state,
+      c.delivery_status || 'DELIVERING',
+      c.daily_budget,
+      c.spend,
+      c.sales,
+      c.orders,
+      c.clicks,
+      c.impressions,
+      c.ctr !== null && c.ctr !== undefined ? c.ctr.toFixed(2) : '',
+      c.cpc !== null && c.cpc !== undefined ? c.cpc.toFixed(2) : '',
+      c.acos_is_infinite ? 'INF' : c.acos !== null && c.acos !== undefined ? c.acos.toFixed(2) : '',
+      c.roas !== null && c.roas !== undefined ? c.roas.toFixed(2) : '',
+      c.bidding_strategy || '',
+      c.placement_top_of_search_pct ?? 0,
+      c.placement_product_pages_pct ?? 0,
+    ]);
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `selected_campaigns_inr_${selectedIds.length}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-surface border border-border-dim rounded-md shadow-lg px-4 py-2.5 flex items-center gap-3 text-xs font-mono text-text-main animate-in fade-in slide-in-from-bottom-2 duration-150">
-      <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-        {selectedIds.length} selected
-      </span>
+    <>
+      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-surface border border-border-dim rounded-md shadow-xl px-4 py-2.5 flex items-center gap-2.5 text-xs font-mono text-text-main animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <span className="font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
+          {num(selectedIds.length)} selected
+        </span>
 
-      <div className="h-4 w-px bg-border-dim" />
+        <div className="h-4 w-px bg-border-dim" />
 
-      {/* Enable */}
-      <button
-        type="button"
-        onClick={() => onAction(selectedIds, 'ENABLE')}
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700"
-      >
-        <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
-        <span>Enable</span>
-      </button>
+        {/* Enable */}
+        <button
+          type="button"
+          onClick={() => onAction(selectedIds, 'ENABLE')}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          title="Enable selected campaigns"
+        >
+          <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+          <span>Enable</span>
+        </button>
 
-      {/* Pause */}
-      <button
-        type="button"
-        onClick={() => onAction(selectedIds, 'PAUSE')}
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700"
-      >
-        <Pause className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
-        <span>Pause</span>
-      </button>
+        {/* Pause */}
+        <button
+          type="button"
+          onClick={() => onAction(selectedIds, 'PAUSE')}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          title="Pause selected campaigns"
+        >
+          <Pause className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
+          <span>Pause</span>
+        </button>
 
-      {/* Set Budget Popover */}
-      <Popover
-        open={budgetPopoverOpen}
-        onOpenChange={setBudgetPopoverOpen}
-        trigger={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700"
-          >
-            <DollarSign className="w-3.5 h-3.5 text-slate-500" />
-            <span>Set Budget</span>
-          </button>
-        }
-      >
-        <div className="w-48 p-2.5 text-xs font-mono">
-          <label className="block text-[11px] uppercase tracking-wider text-slate-500 mb-1">
-            New Daily Budget ({rules?.symbol || '$'})
-          </label>
-          <input
-            type="number"
-            min={rules?.min_budget || 1}
-            step="any"
-            value={budgetValue}
-            onChange={(e) => setBudgetValue(e.target.value)}
-            className="w-full px-2 py-1 border border-border-dim rounded mb-2 text-xs"
-            placeholder={`Min ${rules?.symbol || '$'}${rules?.min_budget || 1}`}
-          />
-          <div className="flex justify-end gap-1.5">
+        {/* Adjust Budget */}
+        <button
+          type="button"
+          onClick={() => setBudgetModalOpen(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          title="Bulk adjust daily budget"
+        >
+          <IndianRupee className="w-3.5 h-3.5 text-slate-600" />
+          <span>Adjust Budget</span>
+        </button>
+
+        {/* Change Bidding Strategy */}
+        <Popover
+          open={strategyPopoverOpen}
+          onOpenChange={setStrategyPopoverOpen}
+          trigger={
             <button
               type="button"
-              onClick={() => setBudgetPopoverOpen(false)}
-              className="px-2 py-1 border rounded text-[11px]"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+              title="Change bidding strategy"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
+              <span>Strategy</span>
+            </button>
+          }
+        >
+          <div className="w-56 p-3 text-xs font-mono space-y-2.5">
+            <div className="font-bold uppercase tracking-wider text-[11px] text-slate-600 pb-1 border-b border-border-dim">
+              Bidding Strategy
+            </div>
+            <div className="space-y-1.5">
+              {[
+                { value: 'DOWN_ONLY', label: 'Dynamic bids - down only' },
+                { value: 'UP_AND_DOWN', label: 'Dynamic bids - up and down' },
+                { value: 'FIXED', label: 'Fixed bids' },
+              ].map((opt) => (
+                <label
+                  key={opt.value}
+                  className="flex items-center gap-2 p-1.5 rounded hover:bg-slate-50 cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    name="strategy_radio"
+                    checked={selectedStrategy === opt.value}
+                    onChange={() => setSelectedStrategy(opt.value as any)}
+                    className="text-primary focus:ring-primary h-3.5 w-3.5"
+                  />
+                  <span className="text-[11px]">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-1.5 pt-2 border-t border-border-dim">
+              <button
+                type="button"
+                onClick={() => setStrategyPopoverOpen(false)}
+                className="px-2 py-1 border border-border-dim rounded text-[11px]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyStrategy}
+                className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </Popover>
+
+        {/* Adjust Placement % */}
+        <Popover
+          open={placementPopoverOpen}
+          onOpenChange={setPlacementPopoverOpen}
+          trigger={
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+              title="Adjust placement bid multiplier"
+            >
+              <Percent className="w-3.5 h-3.5 text-slate-600" />
+              <span>Placement %</span>
+            </button>
+          }
+        >
+          <div className="w-64 p-3 text-xs font-mono space-y-2.5">
+            <div className="font-bold uppercase tracking-wider text-[11px] text-slate-600 pb-1 border-b border-border-dim">
+              Placement Multiplier
+            </div>
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">Placement</label>
+              <select
+                value={placementTarget}
+                onChange={(e) => setPlacementTarget(e.target.value as any)}
+                className="w-full px-2 py-1 border border-border-dim rounded text-xs bg-white"
+              >
+                <option value="TOP_OF_SEARCH">Top of search (first page)</option>
+                <option value="PRODUCT_PAGES">Product pages</option>
+                <option value="REST_OF_SEARCH">Rest of search</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">Modifier (0% to 900%)</label>
+              <PercentInput
+                value={placementModifier}
+                onChange={(val) => setPlacementModifier(val ?? 0)}
+                min={0}
+                max={900}
+              />
+            </div>
+            <div className="flex justify-end gap-1.5 pt-2 border-t border-border-dim">
+              <button
+                type="button"
+                onClick={() => setPlacementPopoverOpen(false)}
+                className="px-2 py-1 border border-border-dim rounded text-[11px]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyPlacement}
+                className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </Popover>
+
+        {/* Export CSV */}
+        <button
+          type="button"
+          onClick={handleExportSelectedCsv}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          title="Export selected as CSV"
+        >
+          <Download className="w-3.5 h-3.5 text-slate-600" />
+          <span>Export CSV</span>
+        </button>
+
+        {/* Archive */}
+        <button
+          type="button"
+          onClick={() => setArchiveConfirmOpen(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-red-50 text-spend transition-colors"
+          title="Archive selected campaigns"
+        >
+          <Archive className="w-3.5 h-3.5 text-spend" />
+          <span>Archive</span>
+        </button>
+
+        <div className="h-4 w-px bg-border-dim" />
+
+        {/* Clear selection */}
+        <button
+          type="button"
+          onClick={onClearSelection}
+          className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+          title="Deselect all"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Adjust Budget Modal */}
+      <Modal
+        open={budgetModalOpen}
+        onClose={() => setBudgetModalOpen(false)}
+        title={`Adjust Daily Budget (${num(selectedIds.length)} campaigns)`}
+      >
+        <div className="space-y-4 font-mono text-xs text-text-main">
+          <div>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1.5">
+              Adjustment Type
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                { id: 'BUDGET_SET', label: 'Set new fixed budget (₹)' },
+                { id: 'BUDGET_INCREASE_PCT', label: 'Increase by percentage (%)' },
+                { id: 'BUDGET_DECREASE_PCT', label: 'Decrease by percentage (%)' },
+                { id: 'BUDGET_INCREASE_AMT', label: 'Increase by amount (₹)' },
+                { id: 'BUDGET_DECREASE_AMT', label: 'Decrease by amount (₹)' },
+              ].map((opt) => (
+                <label
+                  key={opt.id}
+                  className={`flex items-center gap-2 p-2 border rounded-md cursor-pointer transition-colors ${
+                    budgetMode === opt.id
+                      ? 'border-primary bg-primary/5 font-semibold text-slate-900'
+                      : 'border-border-dim hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="bulk_budget_mode"
+                    checked={budgetMode === opt.id}
+                    onChange={() => setBudgetMode(opt.id as BudgetMode)}
+                    className="text-primary focus:ring-primary h-3.5 w-3.5"
+                  />
+                  <span className="text-[11px]">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 mb-1">
+              {budgetMode.includes('PCT') ? 'Percentage (%)' : 'Amount (₹)'}
+            </label>
+            {budgetMode.includes('PCT') ? (
+              <PercentInput
+                value={budgetValue}
+                onChange={(val) => setBudgetValue(val ?? 10)}
+                min={1}
+                max={500}
+              />
+            ) : (
+              <MoneyInput
+                value={budgetValue}
+                onChange={(val) => setBudgetValue(val || 100)}
+                symbol="₹"
+                min={budgetMode === 'BUDGET_SET' ? 100 : 1}
+                helperText={budgetMode === 'BUDGET_SET' ? 'Min daily budget is ₹100.00' : undefined}
+              />
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border-dim">
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">
+                Minimum Budget Floor (₹)
+              </label>
+              <MoneyInput
+                value={budgetFloor}
+                onChange={(val) => setBudgetFloor(val || 100)}
+                symbol="₹"
+                min={100}
+                helperText="Floor: ₹100.00"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-slate-500 mb-1">
+                Maximum Budget Cap (₹, optional)
+              </label>
+              <MoneyInput
+                value={budgetCap ?? null}
+                onChange={(val) => setBudgetCap(val ?? undefined)}
+                symbol="₹"
+                placeholder="No ceiling"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-border-dim">
+            <button
+              type="button"
+              onClick={() => setBudgetModalOpen(false)}
+              className="px-3 py-1.5 border border-border-dim rounded text-xs font-medium hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={handleSetBudget}
-              disabled={!budgetValue || Number(budgetValue) <= 0}
-              className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium disabled:opacity-50"
+              onClick={handleApplyBudget}
+              className="px-4 py-1.5 bg-primary text-white rounded text-xs font-medium shadow-xs hover:bg-indigo-700"
             >
-              Apply
+              Apply Budget Update
             </button>
           </div>
         </div>
-      </Popover>
-
-      {/* Adjust Budget % Popover */}
-      <Popover
-        open={adjustPopoverOpen}
-        onOpenChange={setAdjustPopoverOpen}
-        trigger={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700"
-          >
-            <Percent className="w-3.5 h-3.5 text-slate-500" />
-            <span>Change %</span>
-          </button>
-        }
-      >
-        <div className="w-48 p-2.5 text-xs font-mono">
-          <label className="block text-[11px] uppercase tracking-wider text-slate-500 mb-1">
-            Adjust Budget % (e.g. +10 or -15)
-          </label>
-          <input
-            type="number"
-            value={adjustPct}
-            onChange={(e) => setAdjustPct(e.target.value)}
-            className="w-full px-2 py-1 border border-border-dim rounded mb-2 text-xs"
-            placeholder="+10"
-          />
-          <div className="flex justify-end gap-1.5">
-            <button
-              type="button"
-              onClick={() => setAdjustPopoverOpen(false)}
-              className="px-2 py-1 border rounded text-[11px]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleAdjustBudget}
-              disabled={!adjustPct || Number(adjustPct) === 0}
-              className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium disabled:opacity-50"
-            >
-              Apply
-            </button>
-          </div>
-        </div>
-      </Popover>
-
-      {/* Archive */}
-      <button
-        type="button"
-        onClick={() => setArchiveConfirmOpen(true)}
-        className="inline-flex items-center gap-1 px-2.5 py-1 rounded hover:bg-slate-100 text-spend"
-      >
-        <Archive className="w-3.5 h-3.5" />
-        <span>Archive</span>
-      </button>
-
-      <div className="h-4 w-px bg-border-dim" />
-
-      {/* Clear selection */}
-      <button
-        type="button"
-        onClick={onClearSelection}
-        className="p-1 text-slate-400 hover:text-slate-600 rounded"
-        title="Deselect all"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
+      </Modal>
 
       {/* Archive Confirmation Dialog */}
       <ConfirmDialog
         open={archiveConfirmOpen}
-        onOpenChange={setArchiveConfirmOpen}
-        title="Archive selected campaigns?"
-        description={`Are you sure you want to archive ${selectedIds.length} campaigns? This action cannot be undone.`}
-        confirmLabel="Archive campaigns"
-        destructive
+        title={`Archive ${num(selectedIds.length)} Campaigns?`}
+        description="Archiving is permanent and cannot be undone. All selected campaigns will permanently stop ad delivery and cannot be re-enabled."
+        confirmLabel="Archive Permanently"
+        variant="destructive"
         onConfirm={() => {
-          onAction(selectedIds, 'ARCHIVE');
           setArchiveConfirmOpen(false);
+          onAction(selectedIds, 'ARCHIVE');
         }}
+        onCancel={() => setArchiveConfirmOpen(false)}
       />
-    </div>
+    </>
   );
 }
+
+export default BulkBar;

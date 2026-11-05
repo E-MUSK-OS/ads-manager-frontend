@@ -1,11 +1,11 @@
 "use client";
 
 import React, {
-  useState,
-  useRef,
-  useEffect,
   useCallback,
+  useEffect,
   useLayoutEffect,
+  useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -14,164 +14,164 @@ export interface PopoverProps {
   children:
     | React.ReactNode
     | ((helpers: { close: () => void }) => React.ReactNode);
-  align?: "left" | "right" | "start" | "end" | "center";
-  side?: "top" | "bottom";
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  align?: "start" | "center" | "end" | "left" | "right";
+  sideOffset?: number;
   className?: string;
+  disabled?: boolean;
 }
 
 export function Popover({
   trigger,
   children,
-  align = "right",
   open: controlledOpen,
   onOpenChange,
+  align = "start",
+  sideOffset = 6,
   className = "",
+  disabled = false,
 }: PopoverProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const isOpen = isControlled ? controlledOpen : uncontrolledOpen;
 
   const triggerRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
-  const [coords, setCoords] = useState<{ top: number; left: number }>({
-    top: 0,
-    left: 0,
-  });
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const rafIdRef = useRef<number | null>(null);
 
   const setOpen = useCallback(
-    (nextOpen: boolean) => {
-      if (!isControlled) {
-        setUncontrolledOpen(nextOpen);
-      }
-      onOpenChange?.(nextOpen);
+    (next: boolean) => {
+      if (disabled && next) return;
+      if (!isControlled) setUncontrolledOpen(next);
+      onOpenChange?.(next);
     },
-    [isControlled, onOpenChange]
+    [disabled, isControlled, onOpenChange]
   );
 
   const close = useCallback(() => setOpen(false), [setOpen]);
 
+  // Direct DOM positioning via translate3d — ZERO React re-renders during scroll!
   const updatePosition = useCallback(() => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const menuWidth = contentRef.current?.offsetWidth || 192;
-    const menuHeight = contentRef.current?.offsetHeight || 200;
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
+    const triggerEl = triggerRef.current;
+    const panelEl = panelRef.current;
+    if (!triggerEl || !panelEl) return;
 
-    // Flip upward if there is not enough space below the row trigger
-    const spaceBelow = viewportHeight - rect.bottom;
-    const shouldFlipUp = spaceBelow < menuHeight + 12 && rect.top > menuHeight;
+    const rect = triggerEl.getBoundingClientRect();
+    const panelWidth = panelEl.offsetWidth || 240;
+    const panelHeight = panelEl.offsetHeight || 180;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
 
-    const top = shouldFlipUp
-      ? Math.max(8, rect.top - menuHeight - 6)
-      : rect.bottom + 6;
+    let left = rect.left;
+    if (align === "center") {
+      left = rect.left + rect.width / 2 - panelWidth / 2;
+    } else if (align === "end" || align === "right") {
+      left = rect.right - panelWidth;
+    }
 
-    const isRight = align === "right" || align === "end";
-    let left = isRight ? rect.right - menuWidth : rect.left;
-    left = Math.max(8, Math.min(left, viewportWidth - menuWidth - 8));
+    // Clamp horizontally within viewport
+    left = Math.max(8, Math.min(left, viewportW - panelWidth - 8));
 
-    setCoords({ top, left });
-  }, [align]);
+    // Flip above trigger if not enough space below
+    let top = rect.bottom + sideOffset;
+    if (top + panelHeight > viewportH - 8 && rect.top - panelHeight - sideOffset > 8) {
+      top = rect.top - panelHeight - sideOffset;
+    }
+
+    panelEl.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
+  }, [align, sideOffset]);
+
+  const schedulePositionUpdate = useCallback(() => {
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = window.requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      updatePosition();
+    });
+  }, [updatePosition]);
 
   useLayoutEffect(() => {
-    if (isOpen) {
-      updatePosition();
-    }
+    if (!isOpen) return;
+    updatePosition();
   }, [isOpen, updatePosition]);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
+    const handleScrollOrResize = () => {
+      schedulePositionUpdate();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        close();
+      }
+    };
+
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
       if (
         triggerRef.current?.contains(target) ||
-        contentRef.current?.contains(target)
+        panelRef.current?.contains(target)
       ) {
         return;
       }
       close();
     };
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        close();
-      }
-    };
-
-    const handleScrollOrResize = () => {
-      updatePosition();
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("scroll", handleScrollOrResize, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", handleScrollOrResize, { passive: true });
     document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("scroll", handleScrollOrResize, true);
-    window.addEventListener("resize", handleScrollOrResize);
+    document.addEventListener("mousedown", handlePointerDown);
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
+      if (rafIdRef.current !== null) {
+        window.cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
       window.removeEventListener("scroll", handleScrollOrResize, true);
       window.removeEventListener("resize", handleScrollOrResize);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handlePointerDown);
     };
-  }, [isOpen, close, updatePosition]);
-
-  const handleTriggerClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setOpen(!isOpen);
-  };
+  }, [isOpen, schedulePositionUpdate, close]);
 
   return (
-    <div
-      ref={triggerRef}
-      className="relative inline-block"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
       <div
-        role="button"
-        tabIndex={0}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        onClick={handleTriggerClick}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            e.stopPropagation();
-            setOpen(!isOpen);
-          }
+        ref={triggerRef}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!disabled) setOpen(!isOpen);
         }}
+        className={disabled ? "cursor-not-allowed opacity-60" : "inline-flex cursor-pointer"}
       >
         {trigger}
       </div>
-
       {isOpen &&
         typeof document !== "undefined" &&
         createPortal(
           <div
-            ref={contentRef}
-            role="menu"
+            ref={panelRef}
+            onClick={(e) => e.stopPropagation()}
             style={{
               position: "fixed",
-              top: `${coords.top}px`,
-              left: `${coords.left}px`,
-              zIndex: 9999,
+              top: 0,
+              left: 0,
+              transform: "translate3d(-9999px, -9999px, 0)",
+              willChange: "transform",
             }}
-            className={`min-w-[12rem] rounded-md border border-slate-200 bg-white py-1 shadow-lg focus:outline-none dark:border-slate-700 dark:bg-slate-900 ${className}`}
-            onClick={(e) => {
-              // Prevent React synthetic event from bubbling through portal to parent <tr>
-              e.stopPropagation();
-            }}
+            className={`z-50 bg-white text-slate-900 border border-slate-300 rounded-md shadow-lg ${className}`}
           >
             {typeof children === "function" ? children({ close }) : children}
           </div>,
           document.body
         )}
-    </div>
+    </>
   );
 }
-
-export default Popover;

@@ -1,59 +1,92 @@
-import { MarketplaceRules } from './types/campaign';
+// lib/format.ts
+const INR_FORMATTER = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
-/**
- * Format monetary amount with symbol and proper precision.
- * Returns '—' for null, undefined, or NaN (never NaN or $0.00 misleadingly).
- */
+const INR_WHOLE_FORMATTER = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
+const IN_NUM_FORMATTER = new Intl.NumberFormat("en-IN");
+
 export function money(
-  v: number | null | undefined,
-  rules?: Partial<MarketplaceRules> | null,
-  decimals = 2
+  value: number | null | undefined,
+  _currencyOrRules?: string | any,
+  _locale?: string
 ): string {
-  if (v === null || v === undefined || Number.isNaN(v)) {
-    return '—';
+  void _currencyOrRules;
+  void _locale;
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "—";
   }
-
-  const symbol = rules?.symbol ?? '$';
-  const numFormatted = new Intl.NumberFormat(rules?.locale || 'en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(v);
-
-  return `${symbol}${numFormatted}`;
+  return INR_FORMATTER.format(Number(value));
 }
 
-/**
- * Format percentage.
- * Returns '—' for null, undefined, or NaN (never NaN%).
- */
-export function pct(v: number | null | undefined, decimals = 1): string {
-  if (v === null || v === undefined || Number.isNaN(v)) {
-    return '—';
+export function moneyWhole(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "—";
   }
-  return `${v.toFixed(decimals)}%`;
+  return INR_WHOLE_FORMATTER.format(Math.round(Number(value)));
 }
 
-/**
- * Format numeric ratio (e.g. ROAS).
- * Returns '—' for null, undefined, or NaN.
- */
-export function ratio(v: number | null | undefined, decimals = 2, suffix = 'x'): string {
-  if (v === null || v === undefined || Number.isNaN(v)) {
-    return '—';
+export function compactMoney(
+  value: number | null | undefined,
+  symbol: string = "₹"
+): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "—";
   }
-  return `${v.toFixed(decimals)}${suffix}`;
+  const n = Number(value);
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 1_00_00_000) {
+    return `${sign}${symbol}${(abs / 1_00_00_000).toFixed(2)}Cr`;
+  }
+  if (abs >= 1_00_000) {
+    return `${sign}${symbol}${(abs / 1_00_000).toFixed(2)}L`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${symbol}${(abs / 1_000).toFixed(1)}K`;
+  }
+  return INR_FORMATTER.format(n);
 }
 
-/**
- * Format standard number with locale commas.
- * Returns '—' for null, undefined, or NaN.
- */
-export function num(v: number | null | undefined, decimals?: number): string {
-  if (v === null || v === undefined || Number.isNaN(v)) {
-    return '—';
+export function num(
+  value: number | null | undefined,
+  _locale: string = "en-IN"
+): string {
+  void _locale;
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "—";
   }
-  return new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(v);
+  return IN_NUM_FORMATTER.format(Math.round(Number(value)));
 }
+
+export function pct(
+  value: number | null | undefined,
+  digits: number = 2
+): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "—";
+  }
+  return `${Number(value).toFixed(digits)}%`;
+}
+
+export function ratio(
+  value: number | null | undefined,
+  digits: number = 2
+): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "—";
+  }
+  return `${Number(value).toFixed(digits)}x`;
+}
+
+export const currency = money;
+export const indianCompactNumber = compactMoney;

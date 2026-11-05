@@ -21,6 +21,7 @@ import type {
 } from '@/lib/types/campaign';
 import { money } from '@/lib/format';
 import { FieldError } from '@/components/ui/FieldError';
+import { findKeywordConflicts } from './helpers';
 
 interface Step4NegativesProps {
   draft: CampaignDraft;
@@ -160,6 +161,31 @@ export function Step4Negatives({
         </p>
       </div>
 
+      {/* Live Conflict Warning Banner */}
+      {findKeywordConflicts(draft.targeting.keywords, neg.keywords).length > 0 && (
+        <div className="p-3.5 bg-red-50 border border-red-200 rounded-md text-xs font-mono text-spend flex items-start gap-2.5 shadow-2xs">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-spend mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-bold block">
+              Conflict Detected: Negative Exact Keywords Conflict with Step 3 Active Keywords
+            </span>
+            <p className="text-[11px] text-slate-700 leading-relaxed font-sans">
+              The following negative exact keywords conflict with active positive exact keywords. If launched, Amazon will block ad delivery on these terms:
+            </p>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {findKeywordConflicts(draft.targeting.keywords, neg.keywords).map((term) => (
+                <span
+                  key={term}
+                  className="px-2 py-0.5 bg-red-100 text-spend rounded text-[11px] font-bold border border-red-300 font-mono"
+                >
+                  &ldquo;{term}&rdquo;
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {warnings.length > 0 && (
         <div className="p-3 rounded border border-amber-200 bg-amber-50/50 space-y-1 text-amber-800 text-[11px]">
           {warnings.map((w, idx) => (
@@ -269,23 +295,42 @@ export function Step4Negatives({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-dim">
-                {neg.keywords.map((k) => (
-                  <tr key={k.id} className="hover:bg-slate-50">
-                    <td className="py-1.5 px-3 font-medium text-slate-900">{k.text}</td>
-                    <td className="py-1.5 px-3 text-slate-500">{k.match}</td>
-                    <td className="py-1.5 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onChange({ keywords: neg.keywords.filter((item) => item.id !== k.id) })
-                        }
-                        className="text-slate-400 hover:text-spend p-1"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {neg.keywords.map((k) => {
+                  const isConflicting =
+                    k.match === 'NEGATIVE_EXACT' &&
+                    draft.targeting.keywords.some(
+                      (pk) =>
+                        pk.match === 'EXACT' &&
+                        pk.text.trim().toLowerCase() === k.text.trim().toLowerCase()
+                    );
+
+                  return (
+                    <tr key={k.id} className={`hover:bg-slate-50 ${isConflicting ? 'bg-red-50/40' : ''}`}>
+                      <td className="py-1.5 px-3 font-medium text-slate-900">
+                        <div className="flex items-center gap-2">
+                          <span>{k.text}</span>
+                          {isConflicting && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] bg-red-100 text-spend border border-red-200 font-bold">
+                              Conflict: Positive EXACT
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-1.5 px-3 text-slate-500">{k.match}</td>
+                      <td className="py-1.5 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onChange({ keywords: neg.keywords.filter((item) => item.id !== k.id) })
+                          }
+                          className="text-slate-400 hover:text-spend p-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

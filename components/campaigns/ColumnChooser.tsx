@@ -12,6 +12,7 @@ export type ColumnKey =
   | 'daily_budget'
   | 'targeting_type'
   | 'bidding_strategy'
+  | 'placement_multipliers'
   | 'impressions'
   | 'clicks'
   | 'ctr'
@@ -36,6 +37,7 @@ export const ALL_COLUMNS: ColumnDef[] = [
   { key: 'daily_budget', label: 'Budget' },
   { key: 'targeting_type', label: 'Targeting' },
   { key: 'bidding_strategy', label: 'Strategy' },
+  { key: 'placement_multipliers', label: 'Placements' },
   { key: 'impressions', label: 'Impressions' },
   { key: 'clicks', label: 'Clicks' },
   { key: 'ctr', label: 'CTR' },

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Sparkles, HelpCircle, Check, Info } from 'lucide-react';
-import { checkCampaignName, getCampaignSuggestions, getCampaignSettings } from '@/lib/api-client';
+import { checkCampaignName, getCampaignSuggestions, getCampaignSettings, getCampaignsMeta } from '@/lib/api-client';
 import type {
   CampaignDraft,
   MarketplaceRules,
@@ -16,6 +16,8 @@ import { PercentInput } from '@/components/ui/PercentInput';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { FieldError } from '@/components/ui/FieldError';
 import { RadioCard } from '@/components/ui/RadioCard';
+import { calculateMaxEffectiveBid, type BiddingStrategy } from './helpers';
+import { money } from '@/lib/format';
 
 interface Step1DetailsProps {
   draft: CampaignDraft;
@@ -43,6 +45,7 @@ export function Step1Details({
   // Suggestions
   const [suggestions, setSuggestions] = useState<SuggestionsResponse | null>(null);
   const [defaultTargetAcos, setDefaultTargetAcos] = useState<number>(25);
+  const [portfolios, setPortfolios] = useState<string[]>([]);
 
   useEffect(() => {
     if (draft.accountId) {
@@ -52,6 +55,11 @@ export function Step1Details({
       getCampaignSettings()
         .then((s) => {
           if (s.default_target_acos) setDefaultTargetAcos(s.default_target_acos);
+        })
+        .catch(() => {});
+      getCampaignsMeta(draft.accountId)
+        .then((m) => {
+          if (m?.portfolios) setPortfolios(m.portfolios);
         })
         .catch(() => {});
     }
@@ -171,6 +179,25 @@ export function Step1Details({
             <div className="px-3 py-1.5 border border-border-dim rounded bg-slate-50 text-slate-700 font-medium">
               {countryName} ({rules.currency})
             </div>
+          </div>
+
+          {/* Portfolio */}
+          <div>
+            <label className="block text-slate-600 uppercase text-[11px] mb-1 font-medium">
+              Portfolio (Optional)
+            </label>
+            <select
+              value={(d as any).portfolio_name || ''}
+              onChange={(e) => onChange({ portfolio_name: e.target.value || null } as any)}
+              className="w-full px-3 py-1.5 border border-border-dim rounded bg-white text-xs font-mono focus:border-primary focus:outline-hidden"
+            >
+              <option value="">No Portfolio</option>
+              {portfolios.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Daily Budget */}
@@ -509,6 +536,46 @@ export function Step1Details({
               <FieldError error={errors.placement_product_page} />
             </div>
           </div>
+
+          {/* Live Max Effective CPC Equation Preview Box */}
+          {(() => {
+            const baseBidForCalc = draft.targeting.defaultBid || 15.0;
+            const topPctForCalc = d.placements.top ?? 0;
+            const strategyForCalc: BiddingStrategy =
+              d.strategy === 'UP_AND_DOWN' || d.strategy === 'AUTO_FOR_SALES'
+                ? 'UP_AND_DOWN'
+                : d.strategy === 'FIXED' || d.strategy === 'MANUAL'
+                ? 'FIXED'
+                : 'DOWN_ONLY';
+
+            const maxAuctionBid = calculateMaxEffectiveBid(
+              baseBidForCalc,
+              topPctForCalc,
+              strategyForCalc,
+              'TOP_OF_SEARCH'
+            );
+
+            return (
+              <div className="p-3.5 bg-indigo-50/50 border border-indigo-200 rounded-md text-xs font-mono">
+                <div className="flex items-center gap-1.5 font-semibold text-primary mb-1">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Live Max Effective CPC Equation Preview</span>
+                </div>
+                <p className="text-slate-700 leading-relaxed">
+                  Base bid {money(baseBidForCalc)} + {topPctForCalc}% Top of Search +{' '}
+                  {strategyForCalc === 'UP_AND_DOWN'
+                    ? 'Dynamic Up & Down (2.0x)'
+                    : strategyForCalc === 'FIXED'
+                    ? 'Fixed (1.0x)'
+                    : 'Dynamic Down Only (1.0x)'}{' '}
+                  ={' '}
+                  <span className="font-bold text-slate-900 bg-white px-1.5 py-0.5 rounded border border-indigo-200">
+                    Max auction bid {money(maxAuctionBid)}
+                  </span>
+                </p>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>

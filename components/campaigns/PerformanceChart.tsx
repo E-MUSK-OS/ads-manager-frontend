@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -10,6 +10,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts';
 import {
   Table as TableIcon,
@@ -17,34 +18,23 @@ import {
   Download,
   Maximize2,
   Minimize2,
-  Plus,
-  X,
-  ChevronDown,
+  Info,
 } from 'lucide-react';
 import { useActiveAccount } from '@/lib/useActiveAccount';
-import { money, pct, ratio, num } from '@/lib/format';
-import { Popover } from '@/components/ui/Popover';
-import type { CampaignSummaryResponse, SummarySeriesItem } from '@/lib/types/campaign';
+import { money, compactMoney, pct, ratio, num } from '@/lib/format';
+import type { CampaignSummaryResponse } from '@/lib/types/campaign';
+import type { MetricKey } from './wizard/helpers';
 
-interface PerformanceChartProps {
+export interface PerformanceChartProps {
   summary: CampaignSummaryResponse | null;
   loading?: boolean;
   campaignId?: number;
   onGranularityChange?: (granularity: 'daily' | 'weekly' | 'monthly') => void;
   granularity?: 'daily' | 'weekly' | 'monthly';
+  selectedMetrics?: [MetricKey, MetricKey];
+  endDate?: string;
+  meta?: any;
 }
-
-type MetricKey =
-  | 'spend'
-  | 'sales'
-  | 'orders'
-  | 'impressions'
-  | 'clicks'
-  | 'acos'
-  | 'roas'
-  | 'cpc'
-  | 'ctr'
-  | 'cvr';
 
 type ChartType = 'line' | 'bar';
 
@@ -67,10 +57,9 @@ const METRIC_COLORS: Record<MetricKey, string> = {
   cvr: '#14b8a6', // teal-500
 };
 
-const UNIT = {
+export const UNIT = {
   spend: 'money',
   sales: 'money',
-  organic_sales: 'money',
   cpc: 'money',
   impressions: 'count',
   clicks: 'count',
@@ -78,16 +67,32 @@ const UNIT = {
   acos: 'percent',
   ctr: 'percent',
   cvr: 'percent',
-  tacos: 'percent',
   roas: 'ratio',
 } as const;
 
+// Pure math coordinate guards (Glitch 4)
+export const getX = (index: number, total: number, plotWidth: number, padLeft: number): number => {
+  if (total <= 1) return padLeft + plotWidth / 2;
+  return padLeft + (index / (total - 1)) * plotWidth;
+};
+
+export const getY = (val: number, maxVal: number, plotHeight: number, padTop: number): number => {
+  const safeMax = maxVal > 0 ? maxVal * 1.1 : 100;
+  const clamped = Math.max(0, val);
+  return padTop + plotHeight - (clamped / safeMax) * plotHeight;
+};
+
+const DEFAULT_SELECTED_METRICS: [MetricKey, MetricKey] = ['spend', 'sales'];
+
 export function PerformanceChart({
   summary,
-  loading,
+  loading = false,
   campaignId,
   onGranularityChange,
   granularity = 'daily',
+  selectedMetrics = DEFAULT_SELECTED_METRICS,
+  endDate,
+  meta,
 }: PerformanceChartProps) {
   const { rules } = useActiveAccount();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -95,13 +100,23 @@ export function PerformanceChart({
   const [viewMode, setViewMode] = useState<'chart' | 'table'>('chart');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [viewDataLabels, setViewDataLabels] = useState(false);
-  const [viewChanges, setViewChanges] = useState(false);
-  const [metricAddOpen, setMetricAddOpen] = useState(false);
+  const [viewChanges, setViewChanges] = useState(true);
 
+  const selMetric0 = selectedMetrics?.[0] || 'spend';
+  const selMetric1 = selectedMetrics?.[1] || 'sales';
+
+  // Synchronize activeMetrics with selectedMetrics from KPI ribbon
   const [activeMetrics, setActiveMetrics] = useState<MetricConfig[]>([
-    { key: 'spend', type: 'line', color: METRIC_COLORS.spend },
-    { key: 'sales', type: 'line', color: METRIC_COLORS.sales },
+    { key: selMetric0, type: 'line', color: METRIC_COLORS[selMetric0] || '#e11d48' },
+    { key: selMetric1, type: 'line', color: METRIC_COLORS[selMetric1] || '#059669' },
   ]);
+
+  useEffect(() => {
+    setActiveMetrics([
+      { key: selMetric0, type: 'line', color: METRIC_COLORS[selMetric0] || '#e11d48' },
+      { key: selMetric0 === selMetric1 ? 'sales' : selMetric1, type: 'line', color: METRIC_COLORS[selMetric1] || '#059669' },
+    ]);
+  }, [selMetric0, selMetric1]);
 
   const toggleFullscreen = () => {
     if (!cardRef.current) return;
@@ -131,32 +146,6 @@ export function PerformanceChart({
     document.body.removeChild(link);
   };
 
-  const addMetric = (key: MetricKey) => {
-    if (activeMetrics.some((m) => m.key === key) || activeMetrics.length >= 6) return;
-    setActiveMetrics([...activeMetrics, { key, type: 'line', color: METRIC_COLORS[key] }]);
-    setMetricAddOpen(false);
-  };
-
-  const removeMetric = (key: MetricKey) => {
-    if (activeMetrics.length <= 1) return;
-    setActiveMetrics(activeMetrics.filter((m) => m.key !== key));
-  };
-
-  const updateMetricType = (key: MetricKey, type: ChartType) => {
-    setActiveMetrics(activeMetrics.map((m) => (m.key === key ? { ...m, type } : m)));
-  };
-
-  // Unit axis mapping: 1st unit -> left, 2nd unit -> right, rest -> hidden
-  const unitOrder = useMemo(() => {
-    const units: string[] = [];
-    activeMetrics.forEach((m) => {
-      const u = (UNIT as any)[m.key] || 'count';
-      if (!units.includes(u)) units.push(u);
-    });
-    return units;
-  }, [activeMetrics]);
-
-  // Aligned chart data with previous series
   const chartData = useMemo(() => {
     if (!summary?.series) return [];
     const prevSeries = summary.previous_series || [];
@@ -177,9 +166,22 @@ export function PerformanceChart({
     });
   }, [summary, activeMetrics]);
 
-  const hasData = chartData.some((d) =>
-    activeMetrics.some((m) => d[m.key] !== null && d[m.key] !== undefined && d[m.key] > 0)
-  );
+  const isSingleDay = chartData.length === 1;
+
+  // Attribution lag banner
+  const todayStr = meta?.today || new Date().toISOString().split('T')[0];
+  const showAttributionLag = Boolean(endDate && endDate >= todayStr);
+
+  const formatAxisTick = (val: number, metricKey: MetricKey): string => {
+    const unit = (UNIT as any)[metricKey] || 'count';
+    if (unit === 'money') return compactMoney(val, rules?.symbol || '₹');
+    if (unit === 'percent') return pct(val, 0);
+    if (unit === 'ratio') return ratio(val, 1);
+    return num(val);
+  };
+
+  const metric1 = activeMetrics[0]?.key || 'spend';
+  const metric2 = activeMetrics[1]?.key || 'sales';
 
   return (
     <div
@@ -189,7 +191,7 @@ export function PerformanceChart({
       }`}
     >
       {/* Chart Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-border-dim pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3 border-b border-border-dim pb-3">
         <div className="flex items-center gap-2">
           {/* Granularity pill */}
           <div className="inline-flex rounded-md border border-border-dim p-0.5 bg-slate-50 text-xs font-mono">
@@ -240,17 +242,7 @@ export function PerformanceChart({
 
         {/* Right side controls */}
         <div className="flex items-center gap-3 text-xs font-mono">
-          <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
-            <input
-              type="checkbox"
-              checked={viewDataLabels}
-              onChange={(e) => setViewDataLabels(e.target.checked)}
-              className="rounded border-border-dim text-primary focus:ring-primary h-3.5 w-3.5"
-            />
-            <span>Data labels</span>
-          </label>
-
-          {summary?.previous_series && (
+          {summary?.previous_series && summary.previous_series.length > 0 && (
             <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
               <input
                 type="checkbox"
@@ -258,7 +250,7 @@ export function PerformanceChart({
                 onChange={(e) => setViewChanges(e.target.checked)}
                 className="rounded border-border-dim text-primary focus:ring-primary h-3.5 w-3.5"
               />
-              <span>View changes</span>
+              <span>Compare previous</span>
             </label>
           )}
 
@@ -277,14 +269,18 @@ export function PerformanceChart({
             className="p-1 text-slate-500 hover:text-slate-700 rounded border border-border-dim hover:bg-slate-50"
             title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
           >
-            {isFullscreen ? (
-              <Minimize2 className="w-3.5 h-3.5" />
-            ) : (
-              <Maximize2 className="w-3.5 h-3.5" />
-            )}
+            {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
+
+      {/* Attribution Lag Notice */}
+      {showAttributionLag && (
+        <div className="mb-2 px-2.5 py-1.5 bg-amber-50/70 border border-amber-200/80 rounded flex items-center gap-2 text-[11px] font-mono text-amber-800">
+          <Info className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+          <span>Recent days may be incomplete — orders are attributed later by Amazon Ads.</span>
+        </div>
+      )}
 
       {/* Main Content Area: Chart or Table */}
       {viewMode === 'chart' ? (
@@ -293,14 +289,14 @@ export function PerformanceChart({
             <div className="w-full h-full flex items-center justify-center bg-slate-50/50 rounded animate-pulse">
               <span className="font-mono text-xs text-slate-400">Loading chart...</span>
             </div>
-          ) : !hasData ? (
+          ) : chartData.length === 0 ? (
             <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
               <ChartIcon className="w-8 h-8 stroke-[1.5] mb-2 text-slate-300" />
               <span className="font-mono text-xs">No activity in this period</span>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <ComposedChart data={chartData} margin={{ top: 12, right: 12, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis
                   dataKey="bucket"
@@ -310,28 +306,27 @@ export function PerformanceChart({
                   fontFamily="monospace"
                 />
 
-                {/* Y Axes mapped by unit */}
-                {unitOrder.map((unit, idx) => {
-                  const isVisible = idx <= 1;
-                  const orientation = idx === 0 ? 'left' : 'right';
-                  return (
-                    <YAxis
-                      key={unit}
-                      yAxisId={unit}
-                      orientation={orientation}
-                      hide={!isVisible}
-                      stroke="#94a3b8"
-                      fontSize={11}
-                      fontFamily="monospace"
-                      tickFormatter={(v) => {
-                        if (unit === 'money') return `${rules?.symbol || '$'}${v}`;
-                        if (unit === 'percent') return `${v}%`;
-                        if (unit === 'ratio') return `${v}x`;
-                        return `${v}`;
-                      }}
-                    />
-                  );
-                })}
+                {/* Left Y-Axis (Metric 1) */}
+                <YAxis
+                  yAxisId="left"
+                  orientation="left"
+                  stroke={METRIC_COLORS[metric1] || '#94a3b8'}
+                  fontSize={11}
+                  fontFamily="monospace"
+                  tickFormatter={(v) => formatAxisTick(v, metric1)}
+                  domain={[0, 'auto']}
+                />
+
+                {/* Right Y-Axis (Metric 2) */}
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke={METRIC_COLORS[metric2] || '#94a3b8'}
+                  fontSize={11}
+                  fontFamily="monospace"
+                  tickFormatter={(v) => formatAxisTick(v, metric2)}
+                  domain={[0, 'auto']}
+                />
 
                 <Tooltip
                   content={({ active, payload, label }) => {
@@ -342,11 +337,9 @@ export function PerformanceChart({
                           {label}
                         </div>
                         {payload.map((entry: any) => {
-                          const isPrev = entry.dataKey.startsWith('prev_');
-                          const rawKey = isPrev
-                            ? entry.dataKey.replace('prev_', '')
-                            : entry.dataKey;
-                          const u = (UNIT as any)[rawKey];
+                          const isPrev = entry.dataKey?.startsWith('prev_');
+                          const rawKey = (isPrev ? entry.dataKey.replace('prev_', '') : entry.dataKey) as MetricKey;
+                          const u = (UNIT as any)[rawKey] || 'count';
                           let valStr = String(entry.value ?? '—');
                           if (u === 'money') valStr = money(entry.value, rules);
                           else if (u === 'percent') valStr = pct(entry.value);
@@ -367,7 +360,7 @@ export function PerformanceChart({
                                   {isPrev ? `Prev ${rawKey.toUpperCase()}` : rawKey.toUpperCase()}
                                 </span>
                               </div>
-                              <span className="font-bold text-text-main tabular-nums">
+                              <span className="font-bold text-text-main tabular-nums font-mono">
                                 {valStr}
                               </span>
                             </div>
@@ -378,52 +371,64 @@ export function PerformanceChart({
                   }}
                 />
 
-                {/* Plot Series */}
-                {activeMetrics.map((m) => {
-                  const yAxisId = (UNIT as any)[m.key] || 'count';
+                {/* If single day range (Today / Yesterday), plot reference lines so SVG never has NaN */}
+                {isSingleDay && (
+                  <ReferenceLine
+                    yAxisId="left"
+                    y={chartData[0]?.[metric1] || 0}
+                    stroke={METRIC_COLORS[metric1] || '#94a3b8'}
+                    strokeDasharray="3 3"
+                    strokeOpacity={0.6}
+                  />
+                )}
 
-                  // Compare line if available
-                  const prevLine = summary?.previous_series && (
-                    <Line
-                      key={`prev_${m.key}`}
-                      yAxisId={yAxisId}
-                      type="monotone"
-                      dataKey={`prev_${m.key}`}
-                      stroke={m.color}
-                      strokeDasharray="4 4"
-                      strokeWidth={1.5}
-                      strokeOpacity={0.4}
-                      dot={chartData.length === 1}
-                      name={`Previous ${m.key}`}
-                    />
-                  );
+                {/* Left Metric Line */}
+                {viewChanges && summary?.previous_series && (
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey={`prev_${metric1}`}
+                    stroke={METRIC_COLORS[metric1]}
+                    strokeDasharray="4 4"
+                    strokeWidth={1.5}
+                    strokeOpacity={0.4}
+                    dot={isSingleDay ? { r: 5 } : false}
+                    name={`Previous ${metric1}`}
+                  />
+                )}
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey={metric1}
+                  stroke={METRIC_COLORS[metric1]}
+                  strokeWidth={2}
+                  dot={isSingleDay ? { r: 5, fill: METRIC_COLORS[metric1] } : false}
+                  name={metric1}
+                />
 
-                  return (
-                    <React.Fragment key={m.key}>
-                      {prevLine}
-                      {m.type === 'bar' ? (
-                        <Bar
-                          yAxisId={yAxisId}
-                          dataKey={m.key}
-                          fill={m.color}
-                          radius={[2, 2, 0, 0]}
-                          maxBarSize={32}
-                          name={m.key}
-                        />
-                      ) : (
-                        <Line
-                          yAxisId={yAxisId}
-                          type="monotone"
-                          dataKey={m.key}
-                          stroke={m.color}
-                          strokeWidth={2}
-                          dot={chartData.length === 1}
-                          name={m.key}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                {/* Right Metric Line */}
+                {viewChanges && summary?.previous_series && (
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey={`prev_${metric2}`}
+                    stroke={METRIC_COLORS[metric2]}
+                    strokeDasharray="4 4"
+                    strokeWidth={1.5}
+                    strokeOpacity={0.4}
+                    dot={isSingleDay ? { r: 5 } : false}
+                    name={`Previous ${metric2}`}
+                  />
+                )}
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey={metric2}
+                  stroke={METRIC_COLORS[metric2]}
+                  strokeWidth={2}
+                  dot={isSingleDay ? { r: 5, fill: METRIC_COLORS[metric2] } : false}
+                  name={metric2}
+                />
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -490,69 +495,21 @@ export function PerformanceChart({
         </div>
       )}
 
-      {/* Metric chips under chart */}
-      <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-border-dim">
-        {activeMetrics.map((m) => (
-          <div
-            key={m.key}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono bg-slate-50 border border-border-dim"
-          >
-            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: m.color }} />
-            <span className="font-semibold uppercase text-slate-700">{m.key}</span>
-
-            {/* Line / Bar dropdown */}
-            <select
-              value={m.type}
-              onChange={(e) => updateMetricType(m.key, e.target.value as ChartType)}
-              className="bg-transparent text-[11px] font-mono text-slate-500 border-none focus:ring-0 cursor-pointer ml-1"
-            >
-              <option value="line">Line</option>
-              <option value="bar">Bar</option>
-            </select>
-
-            {activeMetrics.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeMetric(m.key)}
-                className="text-slate-400 hover:text-slate-600 ml-1"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        ))}
-
-        {/* Add metric dropdown */}
-        {activeMetrics.length < 6 && (
-          <Popover
-            open={metricAddOpen}
-            onOpenChange={setMetricAddOpen}
-            trigger={
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono text-slate-600 hover:text-slate-900 border border-dashed border-border-dim rounded-md hover:bg-slate-50"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Add metric</span>
-              </button>
-            }
-          >
-            <div className="w-36 p-1.5 text-xs font-mono">
-              {(Object.keys(METRIC_COLORS) as MetricKey[])
-                .filter((k) => !activeMetrics.some((m) => m.key === k))
-                .map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    onClick={() => addMetric(k)}
-                    className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 uppercase"
-                  >
-                    {k}
-                  </button>
-                ))}
-            </div>
-          </Popover>
-        )}
+      {/* Metric legend pill indicators */}
+      <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-border-dim text-xs font-mono">
+        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-border-dim bg-primary/5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: METRIC_COLORS[metric1] }} />
+          <span className="font-semibold uppercase text-slate-800">{metric1}</span>
+          <span className="text-[10px] text-slate-400 font-normal">(Left Y-Axis)</span>
+        </div>
+        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-border-dim bg-emerald-50/50">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: METRIC_COLORS[metric2] }} />
+          <span className="font-semibold uppercase text-slate-800">{metric2}</span>
+          <span className="text-[10px] text-slate-400 font-normal">(Right Y-Axis)</span>
+        </div>
+        <span className="text-[11px] text-slate-400 ml-auto">
+          Click any 2 KPI cards above to rebind chart axes
+        </span>
       </div>
     </div>
   );

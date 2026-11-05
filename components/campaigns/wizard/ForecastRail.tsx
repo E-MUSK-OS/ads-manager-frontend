@@ -174,47 +174,98 @@ export function ForecastRail({ draft, rules, countryName }: ForecastRailProps) {
           <div className="py-8 text-center text-slate-400">
             <span className="inline-block animate-pulse">Calculating forecast...</span>
           </div>
-        ) : !forecast || !forecast.clicks || !forecast.orders || !forecast.spend ? (
+        ) : !forecast || (!forecast.est_daily_spend && !forecast.spend) ? (
           <div className="py-6 text-center text-slate-400">
             <Info className="w-6 h-6 stroke-[1.5] mx-auto mb-2 text-slate-300" />
             <p className="font-medium text-slate-600 text-xs">No forecast yet</p>
             <p className="text-[10px] text-slate-400 mt-1 leading-relaxed font-sans px-2">
-              To see a forecast: choose products, add targets, enter a bid.
+              To see a forecast: choose products, add targets, enter a daily budget and bid.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
+            {forecast.est_daily_impressions && (
+              <div>
+                <span className="text-[10px] uppercase text-slate-400 block font-medium">
+                  Est. Daily Impressions
+                </span>
+                <span className="font-bold text-base text-slate-900 tabular-nums">
+                  {num(forecast.est_daily_impressions[0])} – {num(forecast.est_daily_impressions[1])}
+                </span>
+              </div>
+            )}
+
             <div>
               <span className="text-[10px] uppercase text-slate-400 block font-medium">
-                Est. Weekly Clicks
+                {forecast.est_daily_clicks ? 'Est. Daily Clicks' : 'Est. Weekly Clicks'}
               </span>
-              <span className="font-bold text-lg text-slate-900 tabular-nums">
-                {num(forecast.clicks.low)} – {num(forecast.clicks.high)}
+              <span className="font-bold text-base text-slate-900 tabular-nums">
+                {forecast.est_daily_clicks
+                  ? `${num(forecast.est_daily_clicks[0])} – ${num(forecast.est_daily_clicks[1])}`
+                  : `${num(forecast.clicks?.low)} – ${num(forecast.clicks?.high)}`}
               </span>
             </div>
 
             <div>
               <span className="text-[10px] uppercase text-slate-400 block font-medium">
-                Est. Weekly Orders
+                {forecast.est_daily_orders ? 'Est. Daily Orders' : 'Est. Weekly Orders'}
               </span>
-              <span className="font-bold text-lg text-emerald-700 tabular-nums">
-                {num(forecast.orders.low)} – {num(forecast.orders.high)}
+              <span className="font-bold text-base text-emerald-700 tabular-nums">
+                {forecast.est_daily_orders
+                  ? `${num(forecast.est_daily_orders[0])} – ${num(forecast.est_daily_orders[1])}`
+                  : `${num(forecast.orders?.low)} – ${num(forecast.orders?.high)}`}
               </span>
             </div>
 
             <div>
               <span className="text-[10px] uppercase text-slate-400 block font-medium">
-                Est. Weekly Spend
+                {forecast.est_daily_spend ? 'Est. Daily Spend' : 'Est. Weekly Spend'}
               </span>
-              <span className="font-bold text-lg text-slate-900 tabular-nums">
-                {money(forecast.spend.low, rules)} – {money(forecast.spend.high, rules)}
+              <span className="font-bold text-base text-slate-900 tabular-nums font-semibold text-spend">
+                {forecast.est_daily_spend
+                  ? `${money(forecast.est_daily_spend[0])} – ${money(forecast.est_daily_spend[1])}`
+                  : `${money(forecast.spend?.low, rules)} – ${money(forecast.spend?.high, rules)}`}
               </span>
             </div>
+
+            {forecast.est_acos_pct !== undefined && (
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border-dim text-[11px]">
+                <div>
+                  <span className="text-[10px] uppercase text-slate-400 block font-medium">
+                    Est. ACOS
+                  </span>
+                  <span className="font-bold text-slate-900 tabular-nums">
+                    {forecast.est_acos_pct.toFixed(1)}%
+                  </span>
+                </div>
+                {forecast.max_effective_cpc !== undefined && (
+                  <div>
+                    <span className="text-[10px] uppercase text-slate-400 block font-medium">
+                      Max Effective CPC
+                    </span>
+                    <span className="font-bold text-slate-900 tabular-nums">
+                      {money(forecast.max_effective_cpc)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {forecast.warnings && forecast.warnings.length > 0 && (
+              <div className="p-2 bg-amber-50 rounded border border-amber-200 text-[10px] text-amber-800 space-y-1">
+                {forecast.warnings.map((w, idx) => (
+                  <div key={idx} className="flex items-start gap-1">
+                    <span className="text-amber-600 font-bold">•</span>
+                    <span>{w}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="pt-2 border-t border-border-dim text-[10px] text-slate-500 font-sans leading-tight">
               {forecast.basis === 'history'
-                ? 'Estimate based on your account’s last 30 days.'
-                : 'Based on typical performance — no historical account data yet.'}
+                ? 'Estimate based on your account’s historical data.'
+                : 'Projected estimate based on Indian marketplace benchmark performance.'}
             </div>
           </div>
         )}

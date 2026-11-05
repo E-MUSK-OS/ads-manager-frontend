@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import assert from 'node:assert';
-import { toPayload, defaultDraft } from '../helpers';
+import { toPayload, defaultDraft, findKeywordConflicts } from '../helpers';
 import type { CampaignDraft, MarketplaceRules } from '@/lib/types/campaign';
 
 const MOCK_RULES: MarketplaceRules = {
@@ -233,5 +233,45 @@ describe('toPayload mapping unit tests', () => {
     // Negative brands and ASINs
     assert.deepStrictEqual(payload.negative_brands, ['CompetitorBrandA', 'CompetitorBrandB']);
     assert.deepStrictEqual(payload.negative_asins, ['B011111111']);
+  });
+
+  it('detects conflicts between positive EXACT keywords and negative EXACT keywords', () => {
+    const positiveKeywords = [
+      { text: 'marathon running shoes', match: 'EXACT' },
+      { text: 'trail shoes', match: 'BROAD' },
+      { text: 'diwali gift box', match: 'EXACT' },
+    ];
+    const negativeKeywords = [
+      { text: 'diwali gift box', match: 'NEGATIVE_EXACT' },
+      { text: 'trail shoes', match: 'NEGATIVE_EXACT' }, // Not exact in positive, so no exact conflict
+      { text: 'free running shoes', match: 'NEGATIVE_PHRASE' },
+    ];
+
+    const conflicts = findKeywordConflicts(positiveKeywords, negativeKeywords);
+    assert.strictEqual(conflicts.length, 1);
+    assert.strictEqual(conflicts[0], 'diwali gift box');
+  });
+
+  it('correctly populates placement percentages in toPayload', () => {
+    const draft: any = {
+      accountId: 101,
+      details: {
+        name: 'Placement Test',
+        targetingType: 'AUTO',
+        site: 'IN',
+        startDate: '2026-11-05',
+        dailyBudget: 1500,
+        strategy: 'UP_AND_DOWN',
+        placements: { top: 50, rest: 20, productPage: 30 },
+        adGroupName: 'Placement AG',
+      },
+      products: { selected: [] },
+      targeting: { autoGroups: [], keywords: [], targets: [] },
+      negatives: { keywords: [], brands: [], asins: [] },
+    };
+    const payload = toPayload(draft, MOCK_RULES);
+    assert.strictEqual(payload.placement_top_of_search_pct, 50);
+    assert.strictEqual(payload.placement_rest_of_search_pct, 20);
+    assert.strictEqual(payload.placement_product_pages_pct, 30);
   });
 });

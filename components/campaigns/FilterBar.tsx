@@ -431,6 +431,23 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
         <div className="flex items-center gap-1.5 border-l border-border-dim pl-2">
           <button
             type="button"
+            onClick={() => {
+              if (filters.min_spend === 500 && filters.max_sales === 0) {
+                onChange({ ...filters, min_spend: undefined, max_sales: undefined });
+              } else {
+                onChange({ ...filters, min_spend: 500, max_sales: 0 });
+              }
+            }}
+            className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
+              filters.min_spend === 500 && filters.max_sales === 0
+                ? 'bg-rose-50 border-rose-300 text-spend font-medium ring-1 ring-spend/20'
+                : 'border-border-dim bg-surface text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            Bleeding campaigns
+          </button>
+          <button
+            type="button"
             onClick={() => applyQuickFilter('leak')}
             className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
               filters.health.includes('BUDGET_LEAK')
@@ -533,13 +550,13 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
         {renderArrayChip('Status', 'status')}
         {renderArrayChip('Health', 'health')}
         {renderArrayChip('Targeting', 'targeting_type')}
-        {renderNumericChip('Budget', 'min_budget', 'max_budget')}
-        {renderNumericChip('Spend', 'min_spend', 'max_spend')}
-        {renderNumericChip('Sales', 'min_sales', 'max_sales')}
+        {renderNumericChip('Budget', 'min_budget', 'max_budget', '₹')}
+        {renderNumericChip('Spend', 'min_spend', 'max_spend', '₹')}
+        {renderNumericChip('Sales', 'min_sales', 'max_sales', '₹')}
         {renderNumericChip('Orders', 'min_orders', 'max_orders')}
         {renderNumericChip('Clicks', 'min_clicks', 'max_clicks')}
         {renderNumericChip('Impressions', 'min_impressions', 'max_impressions')}
-        {renderNumericChip('CPC', 'min_cpc', 'max_cpc')}
+        {renderNumericChip('CPC', 'min_cpc', 'max_cpc', '₹')}
         {renderNumericChip('ACOS', 'min_acos', 'max_acos', '%')}
         {renderNumericChip('ROAS', 'min_roas', 'max_roas', 'x')}
         {renderNumericChip('Time in budget', 'min_utilization', 'max_utilization', '%')}

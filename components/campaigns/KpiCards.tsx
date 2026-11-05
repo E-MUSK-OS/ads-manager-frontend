@@ -1,261 +1,244 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { ArrowUpRight, ArrowDownRight, X, Plus, ChevronDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowUpRight, ArrowDownRight, ChevronDown } from 'lucide-react';
 import { useActiveAccount } from '@/lib/useActiveAccount';
 import { money, pct, ratio, num } from '@/lib/format';
+import { isDeltaFavorable, type MetricKey } from './wizard/helpers';
 import { Popover } from '@/components/ui/Popover';
-import type { CampaignSummaryResponse, ReportTotals } from '@/lib/types/campaign';
 
 interface KpiCardsProps {
-  summary: CampaignSummaryResponse | null;
-  totals?: ReportTotals | null;
+  summary: any;
+  totals?: any;
   loading?: boolean;
   campaignId?: number;
+  selectedChartMetrics?: [MetricKey, MetricKey];
+  onSelectMetric?: (metric: MetricKey) => void;
 }
 
-type MetricKey =
-  | 'impressions'
-  | 'spend'
-  | 'orders'
-  | 'sales'
-  | 'acos'
-  | 'roas'
-  | 'clicks'
-  | 'ctr'
-  | 'cpc'
-  | 'cvr'
-  | 'tacos';
-
-interface MetricMeta {
-  key: MetricKey;
-  label: string;
-  format: (v: number | null | undefined, rules: any) => string;
-  isInverse?: boolean; // If true, lower is better (e.g. spend, acos, cpc)
-}
-
-const METRICS_META: Record<MetricKey, MetricMeta> = {
-  impressions: { key: 'impressions', label: 'Impressions', format: (v) => num(v) },
-  spend: { key: 'spend', label: 'Spend', format: (v, r) => money(v, r), isInverse: true },
-  orders: { key: 'orders', label: 'Orders', format: (v) => num(v) },
-  sales: { key: 'sales', label: 'Sales', format: (v, r) => money(v, r) },
-  acos: { key: 'acos', label: 'ACOS', format: (v) => pct(v), isInverse: true },
-  roas: { key: 'roas', label: 'ROAS', format: (v) => ratio(v) },
-  clicks: { key: 'clicks', label: 'Clicks', format: (v) => num(v) },
-  ctr: { key: 'ctr', label: 'CTR', format: (v) => pct(v) },
-  cpc: { key: 'cpc', label: 'CPC', format: (v, r) => money(v, r), isInverse: true },
-  cvr: { key: 'cvr', label: 'CVR', format: (v) => pct(v) },
-  tacos: { key: 'tacos', label: 'TACoS', format: (v) => pct(v), isInverse: true },
-};
-
-const DEFAULT_METRICS: MetricKey[] = ['impressions', 'spend', 'orders', 'sales'];
-const STORAGE_KEY = 'ads_manager_kpi_selection';
-
-export function KpiCards({ summary, totals, loading, campaignId }: KpiCardsProps) {
+export function KpiCards({
+  summary,
+  totals,
+  loading = false,
+  selectedChartMetrics = ['spend', 'sales'],
+  onSelectMetric,
+}: KpiCardsProps) {
   const { rules } = useActiveAccount();
-  const [selectedMetrics, setSelectedMetrics] = useState<MetricKey[]>(DEFAULT_METRICS);
-  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [eighthCardMetric, setEighthCardMetric] = useState<'cpc' | 'orders' | 'cvr'>('cpc');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as MetricKey[];
-        if (Array.isArray(parsed) && parsed.length >= 1 && parsed.length <= 6) {
-          setSelectedMetrics(parsed);
+  // Extract current, previous, deltas from server-computed summary
+  const current = summary?.current || summary?.totals || totals || {};
+  const previous = summary?.previous || {};
+  const deltas = summary?.deltas || {};
+
+  // Standard 8 card slots:
+  // 1: Spend, 2: Sales, 3: ACOS, 4: ROAS, 5: Impressions, 6: Clicks, 7: CTR, 8: Dynamic (CPC / Orders / CVR)
+  const cardKeys: MetricKey[] = [
+    'spend',
+    'sales',
+    'acos',
+    'roas',
+    'impressions',
+    'clicks',
+    'ctr',
+    eighthCardMetric,
+  ];
+
+  const getMetricLabel = (key: MetricKey): string => {
+    switch (key) {
+      case 'spend': return 'Spend';
+      case 'sales': return 'Sales';
+      case 'acos': return 'ACOS';
+      case 'roas': return 'ROAS';
+      case 'impressions': return 'Impressions';
+      case 'clicks': return 'Clicks';
+      case 'ctr': return 'CTR';
+      case 'cpc': return 'CPC';
+      case 'orders': return 'Orders';
+      case 'cvr': return 'CVR';
+      default: return key;
+    }
+  };
+
+  const formatValue = (key: MetricKey, val: any): React.ReactNode => {
+    if (val === null || val === undefined) {
+      if (key === 'acos' && (current.acos_is_infinite || (Number(current.spend) > 0 && Number(current.sales) === 0))) {
+        return (
+          <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded text-sm font-mono font-bold bg-red-50 text-spend border border-red-200"
+            title={`${money(current.spend, rules)} spent with 0 sales`}
+          >
+            INF
+          </span>
+        );
+      }
+      return '—';
+    }
+
+    switch (key) {
+      case 'spend':
+      case 'sales':
+      case 'cpc':
+        return money(val, rules);
+      case 'acos':
+        if (current.acos_is_infinite || (Number(current.spend) > 0 && Number(current.sales) === 0)) {
+          return (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-sm font-mono font-bold bg-red-50 text-spend border border-red-200"
+              title={`${money(current.spend, rules)} spent with 0 sales`}
+            >
+              INF
+            </span>
+          );
         }
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const saveMetrics = (metrics: MetricKey[]) => {
-    setSelectedMetrics(metrics);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(metrics));
-    } catch {
-      // ignore
-    }
-  };
-
-  const removeMetric = (key: MetricKey) => {
-    if (selectedMetrics.length <= 1) return;
-    const next = selectedMetrics.filter((m) => m !== key);
-    saveMetrics(next);
-  };
-
-  const toggleMetric = (key: MetricKey) => {
-    if (selectedMetrics.includes(key)) {
-      if (selectedMetrics.length > 1) {
-        saveMetrics(selectedMetrics.filter((m) => m !== key));
-      }
-    } else {
-      if (selectedMetrics.length < 6) {
-        saveMetrics([...selectedMetrics, key]);
-      }
+        return pct(val, 2);
+      case 'ctr':
+      case 'cvr':
+        return pct(val, 2);
+      case 'roas':
+        return ratio(val, 2);
+      case 'impressions':
+      case 'clicks':
+      case 'orders':
+        return num(val);
+      default:
+        return String(val);
     }
   };
 
-  // Compute current vs previous totals
-  const currentTotals = summary?.totals || totals || {};
+  const getDeltaValue = (key: MetricKey): number | null => {
+    const deltaKey = `${key}_delta_pct` in deltas ? `${key}_delta_pct` : `${key}_delta_pts`;
+    if (deltaKey in deltas && deltas[deltaKey] !== null && deltas[deltaKey] !== undefined) {
+      return Number(deltas[deltaKey]);
+    }
 
-  // Compute sum of previous series if compare is active
-  const previousTotals: Record<string, number | null> = {};
-  if (summary?.previous_series && summary.previous_series.length > 0) {
-    const ps = summary.previous_series;
-    let imp = 0, clk = 0, sp = 0, sl = 0, ord = 0;
-    ps.forEach((p) => {
-      imp += p.impressions || 0;
-      clk += p.clicks || 0;
-      sp += p.spend || 0;
-      sl += p.sales || 0;
-      ord += p.orders || 0;
-    });
-    previousTotals.impressions = imp;
-    previousTotals.clicks = clk;
-    previousTotals.spend = sp;
-    previousTotals.sales = sl;
-    previousTotals.orders = ord;
-    previousTotals.ctr = imp > 0 ? (clk / imp) * 100 : null;
-    previousTotals.cpc = clk > 0 ? sp / clk : null;
-    previousTotals.cvr = clk > 0 ? (ord / clk) * 100 : null;
-    previousTotals.acos = sl > 0 ? (sp / sl) * 100 : null;
-    previousTotals.roas = sp > 0 ? sl / sp : null;
-  }
+    const curVal = current[key];
+    const prevVal = previous[key];
+    if (curVal !== undefined && prevVal !== undefined && prevVal !== null && prevVal > 0) {
+      if (key === 'acos' || key === 'ctr' || key === 'cvr') {
+        return roundDelta(curVal - prevVal);
+      }
+      return roundDelta(((curVal - prevVal) / prevVal) * 100);
+    }
+    return null;
+  };
+
+  const roundDelta = (val: number) => Number(val.toFixed(1));
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-      {selectedMetrics.map((key) => {
-        const meta = METRICS_META[key];
-        const val = (currentTotals as any)[key];
-        const prevVal = previousTotals[key];
+    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5">
+      {cardKeys.map((key, idx) => {
+        const isEighth = idx === 7;
+        const isPrimary = selectedChartMetrics[0] === key;
+        const isSecondary = selectedChartMetrics[1] === key;
+        const val = current[key];
+        const delta = getDeltaValue(key);
+        const favorable = delta !== null ? isDeltaFavorable(key, delta) : true;
 
-        // Delta calculation
-        let delta: number | null = null;
-        if (
-          val !== null &&
-          val !== undefined &&
-          prevVal !== null &&
-          prevVal !== undefined &&
-          prevVal > 0
-        ) {
-          delta = ((val - prevVal) / prevVal) * 100;
-        }
-
-        const isAcosWithoutSales =
+        const isInfiniteAcos =
           key === 'acos' &&
-          val === null &&
-          Number((currentTotals as any).spend) > 0;
+          (current.acos_is_infinite || (Number(current.spend) > 0 && Number(current.sales) === 0));
 
         return (
           <div
-            key={key}
-            className="group relative bg-surface border border-border-dim rounded-md p-3 flex flex-col justify-between shadow-2xs transition-all hover:border-slate-300"
+            key={`${key}-${idx}`}
+            onClick={() => onSelectMetric && onSelectMetric(key)}
+            className={`relative bg-surface border rounded-md p-2.5 flex flex-col justify-between shadow-2xs transition-all cursor-pointer select-none ${
+              isPrimary
+                ? 'border-t-2 border-t-primary border-slate-300 bg-primary/5 ring-1 ring-primary/20'
+                : isSecondary
+                ? 'border-t-2 border-t-emerald-600 border-slate-300 bg-emerald-50/30 ring-1 ring-emerald-500/20'
+                : 'border-border-dim hover:border-slate-300'
+            }`}
           >
-            {/* Remove Card Button */}
-            {selectedMetrics.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeMetric(key)}
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition-opacity p-0.5 rounded"
-                title="Remove metric"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            <div>
-              <span className="font-mono text-xs uppercase tracking-wider text-slate-500 block">
-                {meta.label}
+            {/* Header: Label + (Eighth Card Switcher / Axis Indicator) */}
+            <div className="flex items-center justify-between">
+              <span className="font-mono text-[11px] uppercase tracking-wider text-slate-500 font-medium">
+                {getMetricLabel(key)}
               </span>
-              <div className="mt-1 flex items-baseline gap-2">
-                {loading ? (
-                  <div className="h-7 w-24 bg-slate-100 animate-pulse rounded" />
-                ) : (
-                  <span className="font-mono text-2xl font-bold tabular-nums text-text-main">
-                    {meta.format(val, rules)}
-                  </span>
-                )}
-              </div>
+
+              {isEighth ? (
+                <Popover
+                  open={dropdownOpen}
+                  onOpenChange={setDropdownOpen}
+                  trigger={
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDropdownOpen(!dropdownOpen);
+                      }}
+                      className="p-0.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center gap-0.5"
+                      title="Switch metric"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </button>
+                  }
+                >
+                  <div className="w-28 p-1 text-xs font-mono">
+                    {(['cpc', 'orders', 'cvr'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEighthCardMetric(m);
+                          setDropdownOpen(false);
+                          if (onSelectMetric) onSelectMetric(m);
+                        }}
+                        className={`w-full text-left px-2 py-1 rounded hover:bg-slate-100 uppercase ${
+                          eighthCardMetric === m ? 'font-bold text-primary' : 'text-slate-700'
+                        }`}
+                      >
+                        {getMetricLabel(m)}
+                      </button>
+                    ))}
+                  </div>
+                </Popover>
+              ) : isPrimary ? (
+                <span className="w-2 h-2 rounded-full bg-primary" title="Primary Axis (Left)" />
+              ) : isSecondary ? (
+                <span className="w-2 h-2 rounded-full bg-emerald-600" title="Secondary Axis (Right)" />
+              ) : null}
             </div>
 
-            {/* Delta / Note footer */}
-            <div className="mt-2 min-h-[18px] flex items-center gap-1.5 text-xs font-mono">
-              {isAcosWithoutSales ? (
-                <span className="text-spend text-[11px] font-medium">No sales</span>
+            {/* Metric Value */}
+            <div className="mt-1 flex items-baseline">
+              {loading ? (
+                <div className="h-6 w-20 bg-slate-100 animate-pulse rounded" />
+              ) : (
+                <span className="font-mono text-lg font-bold tabular-nums text-text-main">
+                  {formatValue(key, val)}
+                </span>
+              )}
+            </div>
+
+            {/* Delta badge */}
+            <div className="mt-1.5 min-h-[16px] flex items-center gap-1 font-mono text-[10px]">
+              {isInfiniteAcos ? (
+                <span className="text-spend font-medium">Spend with 0 sales</span>
               ) : delta !== null ? (
                 <span
-                  className={`inline-flex items-center gap-0.5 text-[11px] font-medium ${
-                    meta.isInverse
-                      ? delta > 0
-                        ? 'text-spend'
-                        : 'text-sales'
-                      : delta > 0
-                      ? 'text-sales'
-                      : 'text-spend'
+                  className={`inline-flex items-center gap-0.5 font-medium ${
+                    favorable ? 'text-sales' : 'text-spend'
                   }`}
                 >
                   {delta > 0 ? (
-                    <ArrowUpRight className="w-3 h-3" />
-                  ) : (
-                    <ArrowDownRight className="w-3 h-3" />
-                  )}
-                  {Math.abs(delta).toFixed(1)}%
+                    <ArrowUpRight className="w-3 h-3 stroke-[2.5]" />
+                  ) : delta < 0 ? (
+                    <ArrowDownRight className="w-3 h-3 stroke-[2.5]" />
+                  ) : null}
+                  {Math.abs(delta).toFixed(1)}
+                  {key === 'acos' || key === 'ctr' || key === 'cvr' ? ' pts' : '%'}
                 </span>
               ) : (
-                <span className="text-slate-400 text-[11px]">—</span>
+                <span className="text-slate-400">—</span>
               )}
             </div>
           </div>
         );
       })}
-
-      {/* Add Metric Card */}
-      {selectedMetrics.length < 6 && (
-        <Popover
-          open={popoverOpen}
-          onOpenChange={setPopoverOpen}
-          trigger={
-            <button
-              type="button"
-              className="h-full min-h-[96px] border border-dashed border-border-dim rounded-md p-3 flex flex-col items-center justify-center gap-1.5 hover:border-slate-400 hover:bg-slate-50/50 transition-colors text-slate-500"
-            >
-              <Plus className="w-4 h-4" />
-              <span className="font-mono text-xs uppercase tracking-wider">
-                Add metric {selectedMetrics.length}/6
-              </span>
-            </button>
-          }
-        >
-          <div className="w-48 p-2 text-xs font-mono">
-            <span className="block text-[11px] uppercase tracking-wider text-slate-400 px-2 py-1 font-medium">
-              Choose Metrics (max 6)
-            </span>
-            {(Object.keys(METRICS_META) as MetricKey[]).map((mk) => {
-              const checked = selectedMetrics.includes(mk);
-              const disabled = !checked && selectedMetrics.length >= 6;
-              return (
-                <label
-                  key={mk}
-                  className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer ${
-                    disabled ? 'opacity-40 cursor-not-allowed' : 'hover:bg-slate-100'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={disabled}
-                    onChange={() => toggleMetric(mk)}
-                    className="rounded border-border-dim text-primary focus:ring-primary"
-                  />
-                  <span>{METRICS_META[mk].label}</span>
-                </label>
-              );
-            })}
-          </div>
-        </Popover>
-      )}
     </div>
   );
 }

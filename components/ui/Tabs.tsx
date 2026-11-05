@@ -27,7 +27,7 @@ export function Tabs({
   return (
     <div
       role="tablist"
-      className={`inline-flex items-center gap-1 p-1 bg-slate-100 rounded-lg border border-border-dim ${className}`}
+      className={`inline-flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-300 ${className}`}
     >
       {items.map((tab) => {
         const isActive = value === tab.id;
@@ -42,8 +42,8 @@ export function Tabs({
               size === 'sm' ? 'px-3 py-1 text-xs' : 'px-4 py-1.5 text-xs'
             } ${
               isActive
-                ? 'bg-primary text-white shadow-xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                ? 'bg-indigo-600 text-white shadow-xs font-semibold'
+                : 'text-slate-700 bg-white hover:bg-slate-100 hover:text-slate-950 border border-slate-200'
             }`}
           >
             <span>{tab.label}</span>
@@ -52,7 +52,7 @@ export function Tabs({
                 className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-semibold ${
                   isActive
                     ? 'bg-white/20 text-white'
-                    : 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-200 text-slate-800'
                 }`}
               >
                 {tab.count}

@@ -5,11 +5,13 @@ import {
   getCampaignReport,
   getCampaignSummary,
   getCampaignAlerts,
+  getCampaignsMeta,
   syncAdsAccount,
   bulkAction,
   updateCampaignState,
   updateCampaignBudget,
   duplicateCampaign,
+  patchCampaign,
   ApiError,
 } from '@/lib/api-client';
 import type {
@@ -20,6 +22,7 @@ import type {
   CampaignState,
   ReportTotals,
 } from '@/lib/types/campaign';
+import type { MetricKey } from '@/components/campaigns/wizard/helpers';
 import { useToast } from '@/components/ui/toast';
 
 export interface FilterState {
@@ -27,6 +30,10 @@ export interface FilterState {
   health: string[];
   targeting_type: string[];
   search: string;
+  portfolio?: string;
+  bidding_strategy?: string;
+  campaign_type?: string;
+  delivery_status?: string;
   min_spend?: number;
   max_spend?: number;
   min_sales?: number;
@@ -71,7 +78,6 @@ export function useCampaignList() {
       setHighlightedRowId(highlightId);
       const timer = setTimeout(() => {
         setHighlightedRowId(null);
-        // Clear highlight from URL without reload
         const sp = new URLSearchParams(window.location.search);
         sp.delete('highlight');
         const newUrl = sp.toString() ? `${pathname}?${sp.toString()}` : pathname;
@@ -81,7 +87,6 @@ export function useCampaignList() {
     }
   }, [highlightId, pathname, router]);
 
-  // Date range defaults: Last 7 days ending today in account tz
   const today = todayInTz();
   const defaultEndDate = today;
   const defaultStartDate = (() => {
@@ -90,7 +95,7 @@ export function useCampaignList() {
     return d.toISOString().split('T')[0];
   })();
 
-  const [dateRange, setDateRange] = useState<DateRangeState>(() => {
+  const [dateRange, setDateRangeState] = useState<DateRangeState>(() => {
     const start = searchParams.get('start') || defaultStartDate;
     const end = searchParams.get('end') || defaultEndDate;
     const preset = searchParams.get('preset') || 'last_7_days';
@@ -103,7 +108,7 @@ export function useCampaignList() {
   const [sortField, setSortField] = useState<string>(() => searchParams.get('sort') || 'spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => (searchParams.get('dir') === 'asc' ? 'asc' : 'desc'));
 
-  const [filters, setFilters] = useState<FilterState>(() => {
+  const [filters, setFiltersState] = useState<FilterState>(() => {
     const statusParam = searchParams.getAll('status');
     const healthParam = searchParams.getAll('health');
     const targetingParam = searchParams.getAll('targeting_type');
@@ -112,6 +117,10 @@ export function useCampaignList() {
       health: healthParam,
       targeting_type: targetingParam,
       search: searchParams.get('q') || '',
+      portfolio: searchParams.get('portfolio') || undefined,
+      bidding_strategy: searchParams.get('bidding_strategy') || undefined,
+      campaign_type: searchParams.get('campaign_type') || undefined,
+      delivery_status: searchParams.get('delivery_status') || undefined,
       min_spend: searchParams.get('min_spend') ? Number(searchParams.get('min_spend')) : undefined,
       max_spend: searchParams.get('max_spend') ? Number(searchParams.get('max_spend')) : undefined,
       min_sales: searchParams.get('min_sales') ? Number(searchParams.get('min_sales')) : undefined,
@@ -135,12 +144,64 @@ export function useCampaignList() {
     };
   });
 
+  // Chart Metric Pair (persist to localStorage)
+  const [selectedChartMetrics, setSelectedChartMetrics] = useState<[MetricKey, MetricKey]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('agy_campaign_chart_metrics');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length === 2) {
+            return parsed as [MetricKey, MetricKey];
+          }
+        }
+      } catch {}
+    }
+    return ['spend', 'sales'];
+  });
+
+  const toggleChartMetric = useCallback((metric: MetricKey) => {
+    setSelectedChartMetrics((prev) => {
+      let next: [MetricKey, MetricKey];
+      if (prev[0] === metric) {
+        next = prev;
+      } else if (prev[1] === metric) {
+        next = [prev[1], prev[0]];
+      } else {
+        next = [prev[0], metric];
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('agy_campaign_chart_metrics', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+  }, []);
+
+  // Atomic filter updater (Glitch 6: resets page to 1)
+  const updateFilters = useCallback((partial: Partial<FilterState>) => {
+    setPage(1);
+    setFiltersState((prev) => ({ ...prev, ...partial }));
+  }, []);
+
+  const setDateRange = useCallback((val: DateRangeState | ((prev: DateRangeState) => DateRangeState)) => {
+    setPage(1);
+    setDateRangeState(val);
+  }, []);
+
+  const setFilters = useCallback((val: FilterState | ((prev: FilterState) => FilterState)) => {
+    setPage(1);
+    setFiltersState(val);
+  }, []);
+
   // Data states
   const [campaigns, setCampaigns] = useState<CampaignItem[]>([]);
   const [totals, setTotals] = useState<ReportTotals | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [summaryData, setSummaryData] = useState<CampaignSummaryResponse | null>(null);
   const [alerts, setAlerts] = useState<CampaignAlert[]>([]);
+  const [meta, setMeta] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -157,6 +218,10 @@ export function useCampaignList() {
     if (dateRange.end) sp.set('end', dateRange.end);
     if (dateRange.compare) sp.set('compare', 'true');
     if (filters.search) sp.set('q', filters.search);
+    if (filters.portfolio) sp.set('portfolio', filters.portfolio);
+    if (filters.bidding_strategy) sp.set('bidding_strategy', filters.bidding_strategy);
+    if (filters.campaign_type) sp.set('campaign_type', filters.campaign_type);
+    if (filters.delivery_status) sp.set('delivery_status', filters.delivery_status);
 
     filters.status.forEach((s) => sp.append('status', s));
     filters.health.forEach((h) => sp.append('health', h));
@@ -185,7 +250,7 @@ export function useCampaignList() {
     updateUrl();
   }, [updateUrl]);
 
-  // Fetch campaign report + summary
+  // Stale request abortion (Glitch 5)
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -214,6 +279,10 @@ export function useCampaignList() {
     if (filters.status.length) queryParams.status = filters.status;
     if (filters.health.length) queryParams.health = filters.health;
     if (filters.targeting_type.length) queryParams.targeting_type = filters.targeting_type;
+    if (filters.portfolio) queryParams.portfolio = filters.portfolio;
+    if (filters.bidding_strategy) queryParams.bidding_strategy = filters.bidding_strategy;
+    if (filters.campaign_type) queryParams.campaign_type = filters.campaign_type;
+    if (filters.delivery_status) queryParams.delivery_status = filters.delivery_status;
 
     const numericKeys = [
       'min_spend', 'max_spend', 'min_sales', 'max_sales',
@@ -230,7 +299,7 @@ export function useCampaignList() {
     });
 
     try {
-      const [reportRes, summaryRes, alertsRes] = await Promise.all([
+      const [reportRes, summaryRes, alertsRes, metaRes] = await Promise.all([
         getCampaignReport(queryParams, controller.signal),
         getCampaignSummary(
           {
@@ -243,6 +312,7 @@ export function useCampaignList() {
           controller.signal
         ),
         getCampaignAlerts(account.id, controller.signal).catch(() => []),
+        getCampaignsMeta(account.id, controller.signal).catch(() => null),
       ]);
 
       setCampaigns(reportRes.items);
@@ -250,6 +320,7 @@ export function useCampaignList() {
       setTotalCount(reportRes.total_count);
       setSummaryData(summaryRes);
       setAlerts(alertsRes);
+      if (metaRes) setMeta(metaRes);
       setError(null);
     } catch (err: any) {
       if (err.name === 'AbortError') return;
@@ -287,10 +358,37 @@ export function useCampaignList() {
     }
   };
 
+  // Optimistic inline patch with rollback
+  const patchCampaignInline = useCallback(
+    async (id: number, payload: Partial<CampaignItem>) => {
+      const original = campaigns.find((c) => c.id === id);
+      if (!original) return false;
+
+      setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, ...payload } : c)));
+
+      try {
+        const updated = await patchCampaign(id, payload as any);
+        setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
+        showToast({ title: 'Campaign updated', message: 'Changes saved successfully.', type: 'success' });
+        return true;
+      } catch (err: any) {
+        setCampaigns((prev) => prev.map((c) => (c.id === id ? original : c)));
+        showToast({ title: 'Update failed', message: err?.message || 'Failed to update campaign', type: 'error' });
+        return false;
+      }
+    },
+    [campaigns, showToast]
+  );
+
   // Optimistic status update with rollback
   const handleUpdateStatus = async (id: number, newState: CampaignState) => {
     const original = campaigns.find((c) => c.id === id);
     if (!original) return;
+
+    if (original.state === 'ARCHIVED') {
+      showToast({ title: 'Archived campaign', message: 'Archived campaigns cannot be modified', type: 'error' });
+      return;
+    }
 
     setCampaigns((prev) =>
       prev.map((c) => (c.id === id ? { ...c, state: newState, status_label: newState } : c))
@@ -310,10 +408,16 @@ export function useCampaignList() {
     const original = campaigns.find((c) => c.id === id);
     if (!original) return false;
 
-    if (rules && newBudget < rules.min_budget) {
+    if (original.state === 'ARCHIVED') {
+      showToast({ title: 'Archived campaign', message: 'Archived campaigns cannot be modified', type: 'error' });
+      return false;
+    }
+
+    const minB = rules?.min_budget ?? 100.0;
+    if (newBudget < minB) {
       showToast({
         title: 'Invalid budget',
-        message: `Minimum daily budget is ${rules.symbol}${rules.min_budget}`,
+        message: `Minimum daily budget is ₹${minB.toFixed(2)}`,
         type: 'error',
       });
       return false;
@@ -323,7 +427,7 @@ export function useCampaignList() {
 
     try {
       await updateCampaignBudget(id, newBudget);
-      showToast({ title: 'Budget saved', message: `Budget updated to ${rules?.symbol || '$'}${newBudget}`, type: 'success' });
+      showToast({ title: 'Budget saved', message: `Budget updated to ₹${newBudget.toFixed(2)}`, type: 'success' });
       return true;
     } catch (err: any) {
       setCampaigns((prev) => prev.map((c) => (c.id === id ? original : c)));
@@ -335,8 +439,8 @@ export function useCampaignList() {
   // Duplicate campaign
   const handleDuplicate = async (id: number) => {
     try {
-      const newCampaign = await duplicateCampaign(id);
-      showToast({ title: 'Campaign duplicated', message: `Created "${newCampaign.name}"`, type: 'success' });
+      const res = await duplicateCampaign(id);
+      showToast({ title: 'Campaign duplicated', message: 'Campaign copy created as PAUSED.', type: 'success' });
       await fetchData();
     } catch (err: any) {
       showToast({ title: 'Duplicate failed', message: err?.message || 'Could not duplicate campaign', type: 'error' });
@@ -344,16 +448,16 @@ export function useCampaignList() {
   };
 
   // Bulk actions
-  const handleBulkAction = async (ids: number[], action: string, value?: number) => {
+  const handleBulkAction = async (ids: number[], action: string, value?: number | string) => {
     try {
-      const res = await bulkAction({ ids, action, value });
+      const res = await bulkAction({ ids, action, value: value as any });
       const succeeded = res.results.filter((r) => r.ok).length;
       const failed = res.results.filter((r) => !r.ok).length;
 
       if (failed === 0) {
         showToast({ title: 'Bulk action complete', message: `${succeeded} campaigns updated successfully.`, type: 'success' });
       } else {
-        const errorDetails = res.results.filter((r) => !r.ok).map((r) => `ID ${r.id}: ${r.error}`).join(', ');
+        const errorDetails = res.results.filter((r) => !r.ok).map((r) => `ID ${r.id}: ${r.error || (r as any).reason || 'Failed'}`).join(', ');
         showToast({
           title: 'Bulk action partial result',
           message: `${succeeded} updated, ${failed} failed (${errorDetails})`,
@@ -369,6 +473,7 @@ export function useCampaignList() {
   return {
     account,
     rules,
+    meta,
     campaigns,
     totals,
     totalCount,
@@ -378,6 +483,9 @@ export function useCampaignList() {
     syncing,
     error,
     highlightedRowId,
+    // chart metrics
+    selectedChartMetrics,
+    toggleChartMetric,
     // filters & pagination
     page,
     setPage,
@@ -391,6 +499,7 @@ export function useCampaignList() {
     setDateRange,
     filters,
     setFilters,
+    updateFilters,
     // actions
     refetch: fetchData,
     handleSync,
@@ -398,5 +507,6 @@ export function useCampaignList() {
     handleUpdateBudget,
     handleDuplicate,
     handleBulkAction,
+    patchCampaignInline,
   };
 }

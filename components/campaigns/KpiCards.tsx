@@ -62,17 +62,19 @@ export function KpiCards({
   };
 
   const formatValue = (key: MetricKey, val: any): React.ReactNode => {
+    const isInfinite =
+      key === 'acos' &&
+      (current.acos_is_infinite || (Number(current.spend) > 0 && Number(current.sales) === 0));
+
+    if (isInfinite) {
+      return (
+        <span className="inline-flex items-center gap-1 text-red-600 font-mono font-bold">
+          INF <span className="text-[10px] font-sans font-semibold px-1 py-0.5 bg-red-100 text-red-800 rounded">0 Sales</span>
+        </span>
+      );
+    }
+
     if (val === null || val === undefined) {
-      if (key === 'acos' && (current.acos_is_infinite || (Number(current.spend) > 0 && Number(current.sales) === 0))) {
-        return (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-sm font-mono font-bold bg-red-50 text-spend border border-red-200"
-            title={`${money(current.spend, rules)} spent with 0 sales`}
-          >
-            INF
-          </span>
-        );
-      }
       return '—';
     }
 
@@ -82,16 +84,6 @@ export function KpiCards({
       case 'cpc':
         return money(val, rules);
       case 'acos':
-        if (current.acos_is_infinite || (Number(current.spend) > 0 && Number(current.sales) === 0)) {
-          return (
-            <span
-              className="inline-flex items-center px-1.5 py-0.5 rounded text-sm font-mono font-bold bg-red-50 text-spend border border-red-200"
-              title={`${money(current.spend, rules)} spent with 0 sales`}
-            >
-              INF
-            </span>
-          );
-        }
         return pct(val, 2);
       case 'ctr':
       case 'cvr':
@@ -144,84 +136,96 @@ export function KpiCards({
           <div
             key={`${key}-${idx}`}
             onClick={() => onSelectMetric && onSelectMetric(key)}
-            className={`relative bg-surface border rounded-md p-2.5 flex flex-col justify-between shadow-2xs transition-all cursor-pointer select-none ${
+            className={`relative rounded-md p-3 flex flex-col justify-between shadow-2xs cursor-pointer transition-colors select-none ${
               isPrimary
-                ? 'border-t-2 border-t-primary border-slate-300 bg-primary/5 ring-1 ring-primary/20'
+                ? 'bg-indigo-50/90 border-2 border-indigo-600 text-slate-950 shadow-xs'
                 : isSecondary
-                ? 'border-t-2 border-t-emerald-600 border-slate-300 bg-emerald-50/30 ring-1 ring-emerald-500/20'
-                : 'border-border-dim hover:border-slate-300'
+                ? 'bg-emerald-50/90 border-2 border-emerald-600 text-slate-950 shadow-xs'
+                : 'bg-white border border-slate-300 hover:border-indigo-500 hover:bg-slate-50/80 text-slate-900'
             }`}
           >
-            {/* Header: Label + (Eighth Card Switcher / Axis Indicator) */}
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[11px] uppercase tracking-wider text-slate-500 font-medium">
+            {/* Header: Label + (Eighth Card Switcher / Axis Indicator Badge) */}
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                 {getMetricLabel(key)}
               </span>
 
-              {isEighth ? (
-                <Popover
-                  open={dropdownOpen}
-                  onOpenChange={setDropdownOpen}
-                  trigger={
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDropdownOpen(!dropdownOpen);
-                      }}
-                      className="p-0.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center gap-0.5"
-                      title="Switch metric"
-                    >
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                  }
-                >
-                  <div className="w-28 p-1 text-xs font-mono">
-                    {(['cpc', 'orders', 'cvr'] as const).map((m) => (
+              <div className="flex items-center gap-1">
+                {isEighth && (
+                  <Popover
+                    open={dropdownOpen}
+                    onOpenChange={setDropdownOpen}
+                    trigger={
                       <button
-                        key={m}
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setEighthCardMetric(m);
-                          setDropdownOpen(false);
-                          if (onSelectMetric) onSelectMetric(m);
+                          setDropdownOpen(!dropdownOpen);
                         }}
-                        className={`w-full text-left px-2 py-1 rounded hover:bg-slate-100 uppercase ${
-                          eighthCardMetric === m ? 'font-bold text-primary' : 'text-slate-700'
-                        }`}
+                        className="p-1 rounded text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 flex items-center"
+                        title="Switch metric"
                       >
-                        {getMetricLabel(m)}
+                        <ChevronDown className="w-3.5 h-3.5" />
                       </button>
-                    ))}
-                  </div>
-                </Popover>
-              ) : isPrimary ? (
-                <span className="w-2 h-2 rounded-full bg-primary" title="Primary Axis (Left)" />
-              ) : isSecondary ? (
-                <span className="w-2 h-2 rounded-full bg-emerald-600" title="Secondary Axis (Right)" />
-              ) : null}
+                    }
+                  >
+                    <div className="w-28 p-1 text-xs font-mono bg-white">
+                      {(['cpc', 'orders', 'cvr'] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEighthCardMetric(m);
+                            setDropdownOpen(false);
+                            if (onSelectMetric) onSelectMetric(m);
+                          }}
+                          className={`w-full text-left px-2 py-1.5 rounded hover:bg-slate-100 uppercase font-semibold ${
+                            eighthCardMetric === m ? 'text-indigo-600 bg-indigo-50' : 'text-slate-800'
+                          }`}
+                        >
+                          {getMetricLabel(m)}
+                        </button>
+                      ))}
+                    </div>
+                  </Popover>
+                )}
+
+                {isPrimary ? (
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-indigo-600 text-white shadow-2xs">
+                    Axis 1
+                  </span>
+                ) : isSecondary ? (
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-emerald-600 text-white shadow-2xs">
+                    Axis 2
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             {/* Metric Value */}
             <div className="mt-1 flex items-baseline">
               {loading ? (
-                <div className="h-6 w-20 bg-slate-100 animate-pulse rounded" />
+                <div className="h-6 w-20 bg-slate-200 animate-pulse rounded" />
               ) : (
-                <span className="font-mono text-lg font-bold tabular-nums text-text-main">
+                <span className="font-mono tabular-nums text-lg font-bold text-slate-950">
                   {formatValue(key, val)}
                 </span>
               )}
             </div>
 
             {/* Delta badge */}
-            <div className="mt-1.5 min-h-[16px] flex items-center gap-1 font-mono text-[10px]">
+            <div className="mt-2 min-h-[22px] flex items-center gap-1 font-mono text-[11px]">
               {isInfiniteAcos ? (
-                <span className="text-spend font-medium">Spend with 0 sales</span>
+                <span className="bg-red-100 text-red-800 border border-red-300 text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                  0 Sales
+                </span>
               ) : delta !== null ? (
                 <span
-                  className={`inline-flex items-center gap-0.5 font-medium ${
-                    favorable ? 'text-sales' : 'text-spend'
+                  className={`inline-flex items-center gap-0.5 font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded border ${
+                    favorable
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-red-100 text-red-800 border-red-300'
                   }`}
                 >
                   {delta > 0 ? (
@@ -233,7 +237,7 @@ export function KpiCards({
                   {key === 'acos' || key === 'ctr' || key === 'cvr' ? ' pts' : '%'}
                 </span>
               ) : (
-                <span className="text-slate-400">—</span>
+                <span className="text-slate-400 font-medium">—</span>
               )}
             </div>
           </div>

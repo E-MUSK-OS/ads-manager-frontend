@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, Plus, TrendingUp, TrendingDown, DollarSign, Target } from 'lucide-react';
+import { Activity, Plus, TrendingUp, TrendingDown, IndianRupee, Target } from 'lucide-react';
 import Link from 'next/link';
+import { moneyWhole, num } from '@/lib/format';
 
 export default function Dashboard() {
   const [account, setAccount] = useState<any>(null);
@@ -82,8 +83,8 @@ export default function Dashboard() {
   const chartData = Object.values(dateMap).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   // Formatting utils
-  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
-  const formatNumber = (val: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(val);
+  const formatCurrency = (val: number) => moneyWhole(val);
+  const formatNumber = (val: number) => num(val);
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -113,7 +114,7 @@ export default function Dashboard() {
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
           <div className="flex justify-between items-start mb-2">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Spend</div>
-            <DollarSign className="w-4 h-4 text-slate-400" />
+            <IndianRupee className="w-4 h-4 text-slate-400" />
           </div>
           <div className="text-3xl font-mono font-bold text-slate-900">{formatCurrency(totalSpend)}</div>
         </div>

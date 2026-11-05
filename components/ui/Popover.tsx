@@ -58,6 +58,18 @@ export function Popover({
     if (!triggerEl || !panelEl) return;
 
     const rect = triggerEl.getBoundingClientRect();
+
+    // If trigger scrolled completely off-screen, close popover to prevent floating ghosts & lag
+    if (
+      rect.bottom < 0 ||
+      rect.top > window.innerHeight ||
+      rect.right < 0 ||
+      rect.left > window.innerWidth
+    ) {
+      close();
+      return;
+    }
+
     const panelWidth = panelEl.offsetWidth || 240;
     const panelHeight = panelEl.offsetHeight || 180;
     const viewportW = window.innerWidth;
@@ -75,12 +87,15 @@ export function Popover({
 
     // Flip above trigger if not enough space below
     let top = rect.bottom + sideOffset;
-    if (top + panelHeight > viewportH - 8 && rect.top - panelHeight - sideOffset > 8) {
+    if (
+      top + panelHeight > viewportH - 8 &&
+      rect.top - panelHeight - sideOffset > 8
+    ) {
       top = rect.top - panelHeight - sideOffset;
     }
 
     panelEl.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
-  }, [align, sideOffset]);
+  }, [align, sideOffset, close]);
 
   const schedulePositionUpdate = useCallback(() => {
     if (rafIdRef.current !== null) return;
@@ -98,7 +113,15 @@ export function Popover({
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleScrollOrResize = () => {
+    const handleScrollOrResize = (e: Event) => {
+      // Ignore scroll events originating inside the popover panel itself
+      if (
+        panelRef.current &&
+        e.target instanceof Node &&
+        panelRef.current.contains(e.target)
+      ) {
+        return;
+      }
       schedulePositionUpdate();
     };
 
@@ -149,7 +172,11 @@ export function Popover({
           e.stopPropagation();
           if (!disabled) setOpen(!isOpen);
         }}
-        className={disabled ? "cursor-not-allowed opacity-60" : "inline-flex cursor-pointer"}
+        className={
+          disabled
+            ? "inline-flex cursor-not-allowed opacity-60"
+            : "inline-flex cursor-pointer"
+        }
       >
         {trigger}
       </div>
@@ -165,6 +192,7 @@ export function Popover({
               left: 0,
               transform: "translate3d(-9999px, -9999px, 0)",
               willChange: "transform",
+              contain: "layout style",
             }}
             className={`z-50 bg-white text-slate-900 border border-slate-300 rounded-md shadow-lg ${className}`}
           >

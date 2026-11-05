@@ -172,11 +172,11 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
           trigger={
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium rounded-md border border-border-dim bg-surface hover:bg-slate-50 transition-colors shadow-2xs text-text-main"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800"
             >
-              <Filter className="w-3.5 h-3.5 text-slate-500" />
+              <Filter className="w-3.5 h-3.5 text-slate-600" />
               <span>Filter by</span>
-              <ChevronDown className="w-3 h-3 text-slate-400" />
+              <ChevronDown className="w-3 h-3 text-slate-500" />
             </button>
           }
         >
@@ -234,7 +234,8 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                     <button
                       type="button"
                       onClick={(e) => handleDeleteSavedFilter(sf.id, e)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500"
+                      className="text-slate-400 hover:text-red-600 p-0.5 rounded transition-colors"
+                      title="Delete saved filter"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -428,31 +429,36 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
         })}
 
         {/* Quick filter buttons */}
-        <div className="flex items-center gap-1.5 border-l border-border-dim pl-2">
-          <button
-            type="button"
-            onClick={() => {
-              if (filters.min_spend === 500 && filters.max_sales === 0) {
-                onChange({ ...filters, min_spend: undefined, max_sales: undefined });
-              } else {
-                onChange({ ...filters, min_spend: 500, max_sales: 0 });
-              }
-            }}
-            className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
-              filters.min_spend === 500 && filters.max_sales === 0
-                ? 'bg-rose-50 border-rose-300 text-spend font-medium ring-1 ring-spend/20'
-                : 'border-border-dim bg-surface text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            Bleeding campaigns
-          </button>
+        <div className="flex items-center gap-1.5 border-l border-slate-300 pl-2">
+          {(() => {
+            const isBleeding = filters.min_spend === 1 && filters.max_orders === 0;
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isBleeding) {
+                    onChange({ ...filters, min_spend: undefined, max_orders: undefined });
+                  } else {
+                    onChange({ ...filters, min_spend: 1, max_orders: 0 });
+                  }
+                }}
+                className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
+                  isBleeding
+                    ? 'bg-red-600 text-white border-red-600 font-semibold shadow-2xs'
+                    : 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100 font-medium'
+                }`}
+              >
+                Bleeding (Spend &gt; ₹0, Sales = ₹0)
+              </button>
+            );
+          })()}
           <button
             type="button"
             onClick={() => applyQuickFilter('leak')}
             className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
               filters.health.includes('BUDGET_LEAK')
-                ? 'bg-rose-50 border-rose-300 text-spend font-medium'
-                : 'border-border-dim bg-surface text-slate-600 hover:bg-slate-50'
+                ? 'bg-amber-600 text-white border-amber-600 font-semibold shadow-2xs'
+                : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-medium'
             }`}
           >
             Budget leak
@@ -462,8 +468,8 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
             onClick={() => applyQuickFilter('scale')}
             className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
               filters.health.includes('SCALE')
-                ? 'bg-emerald-50 border-emerald-300 text-sales font-medium'
-                : 'border-border-dim bg-surface text-slate-600 hover:bg-slate-50'
+                ? 'bg-emerald-600 text-white border-emerald-600 font-semibold shadow-2xs'
+                : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-medium'
             }`}
           >
             Ready to scale
@@ -473,8 +479,8 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
             onClick={() => applyQuickFilter('budget_limited')}
             className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
               filters.min_utilization === 90
-                ? 'bg-amber-50 border-amber-300 text-amber-700 font-medium'
-                : 'border-border-dim bg-surface text-slate-600 hover:bg-slate-50'
+                ? 'bg-amber-600 text-white border-amber-600 font-semibold shadow-2xs'
+                : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-medium'
             }`}
           >
             Limited by budget
@@ -488,9 +494,9 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
           trigger={
             <button
               type="button"
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono text-slate-600 hover:text-slate-900 border border-border-dim rounded-md bg-surface hover:bg-slate-50 ml-auto"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono text-slate-800 hover:text-slate-950 border border-slate-300 rounded-md bg-white hover:bg-slate-100 ml-auto font-medium"
             >
-              <Bookmark className="w-3 h-3" />
+              <Bookmark className="w-3 h-3 text-slate-600" />
               <span>Save filter</span>
             </button>
           }

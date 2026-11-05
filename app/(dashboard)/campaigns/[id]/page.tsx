@@ -539,7 +539,7 @@ function CampaignDetailContent({ params }: PageProps) {
                       <button
                         type="button"
                         onClick={() => setIsEditingName(true)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-primary transition-opacity"
+                        className="p-1 rounded text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 border border-slate-300 transition-colors"
                         title="Rename campaign"
                       >
                         <Pencil className="w-3 h-3" />

@@ -146,21 +146,21 @@ export function BulkBar({
 
   return (
     <>
-      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-surface border border-border-dim rounded-md shadow-xl px-4 py-2.5 flex items-center gap-2.5 text-xs font-mono text-text-main animate-in fade-in slide-in-from-bottom-3 duration-200">
-        <span className="font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
+      <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 bg-slate-900 text-white border border-slate-700 rounded-md shadow-xl px-4 py-2.5 flex flex-wrap items-center gap-2 text-xs font-mono animate-in fade-in slide-in-from-bottom-3 duration-200">
+        <span className="font-semibold text-indigo-300 bg-indigo-950/80 border border-indigo-700 px-2 py-0.5 rounded">
           {num(selectedIds.length)} selected
         </span>
 
-        <div className="h-4 w-px bg-border-dim" />
+        <div className="h-4 w-px bg-slate-700" />
 
         {/* Enable */}
         <button
           type="button"
           onClick={() => onAction(selectedIds, 'ENABLE')}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-800 text-white border border-slate-600 hover:bg-slate-700 text-xs font-medium transition-colors cursor-pointer"
           title="Enable selected campaigns"
         >
-          <Play className="w-3.5 h-3.5 text-emerald-600 fill-emerald-600" />
+          <Play className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
           <span>Enable</span>
         </button>
 
@@ -168,10 +168,10 @@ export function BulkBar({
         <button
           type="button"
           onClick={() => onAction(selectedIds, 'PAUSE')}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-800 text-white border border-slate-600 hover:bg-slate-700 text-xs font-medium transition-colors cursor-pointer"
           title="Pause selected campaigns"
         >
-          <Pause className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
+          <Pause className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
           <span>Pause</span>
         </button>
 
@@ -179,10 +179,10 @@ export function BulkBar({
         <button
           type="button"
           onClick={() => setBudgetModalOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-800 text-white border border-slate-600 hover:bg-slate-700 text-xs font-medium transition-colors cursor-pointer"
           title="Bulk adjust daily budget"
         >
-          <IndianRupee className="w-3.5 h-3.5 text-slate-600" />
+          <IndianRupee className="w-3.5 h-3.5 text-indigo-300" />
           <span>Adjust Budget</span>
         </button>
 
@@ -193,16 +193,16 @@ export function BulkBar({
           trigger={
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-800 text-white border border-slate-600 hover:bg-slate-700 text-xs font-medium transition-colors cursor-pointer"
               title="Change bidding strategy"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-600" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-300" />
               <span>Strategy</span>
             </button>
           }
         >
-          <div className="w-56 p-3 text-xs font-mono space-y-2.5">
-            <div className="font-bold uppercase tracking-wider text-[11px] text-slate-600 pb-1 border-b border-border-dim">
+          <div className="w-56 p-3 text-xs font-mono space-y-2.5 bg-white text-slate-900">
+            <div className="font-bold uppercase tracking-wider text-[11px] text-slate-700 pb-1 border-b border-slate-200">
               Bidding Strategy
             </div>
             <div className="space-y-1.5">
@@ -220,24 +220,24 @@ export function BulkBar({
                     name="strategy_radio"
                     checked={selectedStrategy === opt.value}
                     onChange={() => setSelectedStrategy(opt.value as any)}
-                    className="text-primary focus:ring-primary h-3.5 w-3.5"
+                    className="text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
                   />
-                  <span className="text-[11px]">{opt.label}</span>
+                  <span className="text-[11px] text-slate-800 font-medium">{opt.label}</span>
                 </label>
               ))}
             </div>
-            <div className="flex justify-end gap-1.5 pt-2 border-t border-border-dim">
+            <div className="flex justify-end gap-1.5 pt-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setStrategyPopoverOpen(false)}
-                className="px-2 py-1 border border-border-dim rounded text-[11px]"
+                className="px-2 py-1 border border-slate-300 rounded text-[11px] text-slate-700 hover:bg-slate-100"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleApplyStrategy}
-                className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+                className="px-2.5 py-1 bg-indigo-600 text-white rounded text-[11px] font-medium hover:bg-indigo-700"
               >
                 Apply
               </button>
@@ -252,24 +252,24 @@ export function BulkBar({
           trigger={
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-800 text-white border border-slate-600 hover:bg-slate-700 text-xs font-medium transition-colors cursor-pointer"
               title="Adjust placement bid multiplier"
             >
-              <Percent className="w-3.5 h-3.5 text-slate-600" />
+              <Percent className="w-3.5 h-3.5 text-indigo-300" />
               <span>Placement %</span>
             </button>
           }
         >
-          <div className="w-64 p-3 text-xs font-mono space-y-2.5">
-            <div className="font-bold uppercase tracking-wider text-[11px] text-slate-600 pb-1 border-b border-border-dim">
+          <div className="w-64 p-3 text-xs font-mono space-y-2.5 bg-white text-slate-900">
+            <div className="font-bold uppercase tracking-wider text-[11px] text-slate-700 pb-1 border-b border-slate-200">
               Placement Multiplier
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 mb-1">Placement</label>
+              <label className="block text-[11px] text-slate-600 mb-1 font-medium">Placement</label>
               <select
                 value={placementTarget}
                 onChange={(e) => setPlacementTarget(e.target.value as any)}
-                className="w-full px-2 py-1 border border-border-dim rounded text-xs bg-white"
+                className="w-full px-2 py-1 border border-slate-300 rounded text-xs bg-white text-slate-900"
               >
                 <option value="TOP_OF_SEARCH">Top of search (first page)</option>
                 <option value="PRODUCT_PAGES">Product pages</option>
@@ -277,7 +277,7 @@ export function BulkBar({
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-slate-500 mb-1">Modifier (0% to 900%)</label>
+              <label className="block text-[11px] text-slate-600 mb-1 font-medium">Modifier (0% to 900%)</label>
               <PercentInput
                 value={placementModifier}
                 onChange={(val) => setPlacementModifier(val ?? 0)}
@@ -285,18 +285,18 @@ export function BulkBar({
                 max={900}
               />
             </div>
-            <div className="flex justify-end gap-1.5 pt-2 border-t border-border-dim">
+            <div className="flex justify-end gap-1.5 pt-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setPlacementPopoverOpen(false)}
-                className="px-2 py-1 border border-border-dim rounded text-[11px]"
+                className="px-2 py-1 border border-slate-300 rounded text-[11px] text-slate-700 hover:bg-slate-100"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleApplyPlacement}
-                className="px-2.5 py-1 bg-primary text-white rounded text-[11px] font-medium"
+                className="px-2.5 py-1 bg-indigo-600 text-white rounded text-[11px] font-medium hover:bg-indigo-700"
               >
                 Apply
               </button>
@@ -308,10 +308,10 @@ export function BulkBar({
         <button
           type="button"
           onClick={handleExportSelectedCsv}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-slate-800 text-white border border-slate-600 hover:bg-slate-700 text-xs font-medium transition-colors cursor-pointer"
           title="Export selected as CSV"
         >
-          <Download className="w-3.5 h-3.5 text-slate-600" />
+          <Download className="w-3.5 h-3.5 text-slate-300" />
           <span>Export CSV</span>
         </button>
 
@@ -319,20 +319,20 @@ export function BulkBar({
         <button
           type="button"
           onClick={() => setArchiveConfirmOpen(true)}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded hover:bg-red-50 text-spend transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded bg-red-950 text-red-200 border border-red-700 hover:bg-red-900 text-xs font-medium transition-colors cursor-pointer"
           title="Archive selected campaigns"
         >
-          <Archive className="w-3.5 h-3.5 text-spend" />
+          <Archive className="w-3.5 h-3.5 text-red-400" />
           <span>Archive</span>
         </button>
 
-        <div className="h-4 w-px bg-border-dim" />
+        <div className="h-4 w-px bg-slate-700" />
 
         {/* Clear selection */}
         <button
           type="button"
           onClick={onClearSelection}
-          className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+          className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer"
           title="Deselect all"
         >
           <X className="w-4 h-4" />

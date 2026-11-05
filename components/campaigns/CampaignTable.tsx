@@ -312,19 +312,20 @@ export function CampaignTable({
   const startIndex = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const endIndex = Math.min(page * pageSize, totalCount);
 
-  // Delivery status badge
+  // Delivery status badge (High-contrast light theme)
   const getDeliveryBadge = (c: CampaignItem) => {
     const status = (c.delivery_status || (c.state === 'PAUSED' ? 'PAUSED' : 'DELIVERING')).toUpperCase();
     const styleMap: Record<string, string> = {
-      DELIVERING: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      OUT_OF_BUDGET: 'bg-amber-50 text-amber-700 border-amber-200',
-      PAUSED: 'bg-slate-100 text-slate-600 border-slate-200',
-      ARCHIVED: 'bg-slate-100 text-slate-400 border-slate-200',
-      ENDED: 'bg-rose-50 text-rose-700 border-rose-200',
+      DELIVERING: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold',
+      ENABLED: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold',
+      OUT_OF_BUDGET: 'bg-red-100 text-red-900 border-red-300 font-semibold',
+      PAUSED: 'bg-amber-100 text-amber-900 border-amber-300 font-semibold',
+      ARCHIVED: 'bg-slate-200 text-slate-800 border-slate-300 font-semibold',
+      ENDED: 'bg-slate-200 text-slate-800 border-slate-300 font-semibold',
     };
     return (
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border font-medium uppercase tracking-wider ${
+        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border uppercase tracking-wider ${
           styleMap[status] || styleMap.DELIVERING
         }`}
       >
@@ -333,20 +334,20 @@ export function CampaignTable({
     );
   };
 
-  // Health badge
+  // Health badge (High-contrast light theme)
   const getHealthBadge = (c: CampaignItem) => {
     const color = c.health_color || 'green';
     const label = c.health_label || c.health || 'Healthy';
     const colorMap: Record<string, string> = {
-      green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      red: 'bg-rose-50 text-rose-700 border-rose-200',
-      amber: 'bg-amber-50 text-amber-700 border-amber-200',
-      blue: 'bg-sky-50 text-sky-700 border-sky-200',
-      slate: 'bg-slate-50 text-slate-600 border-slate-200',
+      green: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold',
+      red: 'bg-red-100 text-red-900 border-red-300 font-semibold',
+      amber: 'bg-amber-100 text-amber-900 border-amber-300 font-semibold',
+      blue: 'bg-sky-100 text-sky-900 border-sky-300 font-semibold',
+      slate: 'bg-slate-200 text-slate-800 border-slate-300 font-semibold',
     };
     return (
       <span
-        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono border font-medium uppercase tracking-wider ${
+        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono border uppercase tracking-wider ${
           colorMap[color] || colorMap.green
         }`}
       >
@@ -419,30 +420,30 @@ export function CampaignTable({
         </div>
       )}
 
-      {/* Table Area with Strict 5-Layer Z-Index & Sticky Column Matrix (Glitch 2) */}
-      <div className="relative overflow-x-auto bg-surface border-b border-border-dim">
+      {/* Table Area with Strict 5-Layer Z-Index & Sticky Column Matrix */}
+      <div className="relative overflow-x-auto bg-white border border-slate-300 rounded-md shadow-2xs">
         <table className="w-full text-left border-collapse">
           {/* Header */}
-          <thead className="bg-slate-50 border-b border-border-dim text-[11px] font-mono uppercase tracking-wider text-slate-500 sticky top-0 z-20">
+          <thead className="bg-slate-100 border-b border-slate-300 text-[11px] font-mono uppercase tracking-wider text-slate-800 sticky top-0 z-20">
             <tr>
               {/* Sticky Col 1: Checkbox */}
-              <th className="py-2.5 px-3 w-10 min-w-[40px] max-w-[40px] sticky left-0 z-30 bg-slate-50">
+              <th className="py-2.5 px-3 w-10 min-w-[40px] max-w-[40px] sticky left-0 z-30 bg-slate-100">
                 <input
                   type="checkbox"
                   aria-label="Select all campaigns"
                   checked={campaigns.length > 0 && selectedIds.length === campaigns.length}
                   onChange={toggleSelectAll}
-                  className="rounded border-border-dim text-primary focus:ring-primary h-3.5 w-3.5"
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
                 />
               </th>
 
               {/* Sticky Col 2: State Switch */}
-              <th className="py-2.5 px-2 w-14 min-w-[56px] max-w-[56px] sticky left-[40px] z-30 bg-slate-50 text-center">
+              <th className="py-2.5 px-2 w-14 min-w-[56px] max-w-[56px] sticky left-[40px] z-30 bg-slate-100 text-center">
                 State
               </th>
 
               {/* Sticky Col 3: Campaign Name */}
-              <th className="py-2.5 px-3 min-w-[260px] max-w-[320px] sticky left-[96px] z-30 bg-slate-50 shadow-[1px_0_0_0_var(--color-border-dim)]">
+              <th className="py-2.5 px-3 min-w-[260px] max-w-[320px] sticky left-[96px] z-30 bg-slate-100 shadow-[1px_0_0_0_#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => handleHeaderSort('name')}
@@ -736,7 +737,7 @@ export function CampaignTable({
                               trigger={
                                 <button
                                   type="button"
-                                  className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-primary transition-opacity rounded hover:bg-slate-100"
+                                  className="p-1 text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 border border-slate-300 rounded transition-colors"
                                   title="Edit campaign name"
                                 >
                                   <Pencil className="w-3 h-3" />
@@ -815,14 +816,13 @@ export function CampaignTable({
                                     }
                                   }}
                                   trigger={
-                                    <button
-                                      type="button"
-                                      className="font-medium hover:text-primary hover:underline tabular-nums text-slate-900 inline-flex items-center gap-1"
+                                    <span
+                                      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-mono text-xs font-semibold text-slate-900 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-300 transition-colors cursor-pointer"
                                       title="Click to edit budget"
                                     >
                                       <span>{money(c.daily_budget)}</span>
-                                      <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-slate-400" />
-                                    </button>
+                                      <Pencil className="w-3 h-3 text-slate-500 shrink-0" />
+                                    </span>
                                   }
                                 >
                                   <div className="w-64 p-3 text-xs font-mono space-y-2.5">
@@ -932,9 +932,9 @@ export function CampaignTable({
                                 }
                               }}
                               trigger={
-                                <button
-                                  type="button"
-                                  className="text-left text-slate-700 hover:text-primary transition-colors truncate max-w-[130px] inline-flex items-center gap-1"
+                                <span
+                                  className="bg-slate-100 text-slate-800 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-300 px-2 py-0.5 rounded text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors max-w-[130px]"
+                                  title="Click to edit strategy"
                                 >
                                   <span className="truncate">
                                     {String(c.bidding_strategy).toUpperCase() === 'UP_AND_DOWN'
@@ -943,8 +943,8 @@ export function CampaignTable({
                                       ? 'Fixed'
                                       : 'Down only'}
                                   </span>
-                                  <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-slate-400 shrink-0" />
-                                </button>
+                                  <Pencil className="w-3 h-3 text-slate-500 shrink-0" />
+                                </span>
                               }
                             >
                               <div className="w-64 p-3 text-xs font-mono space-y-2">
@@ -1009,15 +1009,15 @@ export function CampaignTable({
                                 }
                               }}
                               trigger={
-                                <button
-                                  type="button"
-                                  className="text-left text-slate-700 hover:text-primary transition-colors inline-flex items-center gap-1"
+                                <span
+                                  className="font-mono text-xs bg-slate-100 text-slate-800 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-300 px-2 py-0.5 rounded inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                  title="Click to edit placement multipliers"
                                 >
                                   <span>
                                     Top: +{c.placement_top_of_search_pct ?? 0}%
                                   </span>
-                                  <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-slate-400" />
-                                </button>
+                                  <Pencil className="w-3 h-3 text-slate-500 shrink-0" />
+                                </span>
                               }
                             >
                               <div className="w-64 p-3 text-xs font-mono space-y-2.5">
@@ -1106,13 +1106,13 @@ export function CampaignTable({
                                 }
                               }}
                               trigger={
-                                <button
-                                  type="button"
-                                  className="text-left hover:text-primary inline-flex items-center gap-1"
+                                <span
+                                  className="bg-slate-100 text-slate-800 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-300 px-2 py-0.5 rounded text-xs inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                  title="Click to edit dates"
                                 >
                                   <span>{c.start_date || '—'}</span>
-                                  <Calendar className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-slate-400" />
-                                </button>
+                                  <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
+                                </span>
                               }
                             >
                               <div className="w-64 p-3 text-xs font-mono space-y-2.5">
@@ -1196,12 +1196,12 @@ export function CampaignTable({
                         </td>
                       )}
 
-                      {/* ACOS Column (Fixes Glitch 9: Bleeding INF Badge) */}
+                      {/* ACOS Column (Bleeding INF Badge) */}
                       {visibleColumns.includes('acos') && (
                         <td className="py-2.5 px-3 text-right tabular-nums">
                           {c.acos_is_infinite ? (
                             <span
-                              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-red-50 text-spend border border-red-200"
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-bold bg-red-100 text-red-800 border border-red-300"
                               title={`${money(c.spend)} spent with 0 sales`}
                             >
                               INF
@@ -1307,13 +1307,13 @@ export function CampaignTable({
             )}
           </tbody>
 
-          {/* Pinned Totals Row (Fixes Glitch 8: Weighted Totals, Glitch 2: Sticky corners z-30) */}
+          {/* Pinned Totals Row (Strict Indian Standards, Sticky corners z-30) */}
           {totals && campaigns.length > 0 && (
-            <tfoot className="bg-slate-50 border-t-2 border-border-dim font-bold text-text-main sticky bottom-0 z-20">
+            <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-slate-950 sticky bottom-0 z-20">
               <tr>
-                <td className="py-2.5 px-3 sticky left-0 z-30 bg-slate-50" />
-                <td className="py-2.5 px-2 sticky left-[40px] z-30 bg-slate-50" />
-                <td className="py-2.5 px-3 sticky left-[96px] z-30 bg-slate-50 shadow-[1px_0_0_0_var(--color-border-dim)]">
+                <td className="py-2.5 px-3 sticky left-0 z-30 bg-slate-100" />
+                <td className="py-2.5 px-2 sticky left-[40px] z-30 bg-slate-100" />
+                <td className="py-2.5 px-3 sticky left-[96px] z-30 bg-slate-100 shadow-[1px_0_0_0_#cbd5e1]">
                   Total ({num(totalCount)} campaigns)
                 </td>
 
@@ -1354,7 +1354,7 @@ export function CampaignTable({
                 {visibleColumns.includes('acos') && (
                   <td className="py-2.5 px-3 text-right tabular-nums">
                     {(totals as any).acos_is_infinite || (totals.spend > 0 && totals.sales === 0) ? (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-red-50 text-spend border border-red-200">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-bold bg-red-100 text-red-800 border border-red-300">
                         INF
                       </span>
                     ) : (

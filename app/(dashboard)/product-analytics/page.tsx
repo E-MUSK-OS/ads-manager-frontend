@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Package, Activity, Star, Search, X } from 'lucide-react';
 import Link from 'next/link';
+import { num } from '@/lib/format';
 
 export default function ProductAnalyticsList() {
   const [products, setProducts] = useState<any[]>([]);
@@ -58,7 +59,7 @@ export default function ProductAnalyticsList() {
     );
   }
 
-  const formatNumber = (val: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(val);
+  const formatNumber = (val: number) => num(val);
 
   const filteredProducts = products.filter(p => 
     p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 

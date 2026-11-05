@@ -194,16 +194,16 @@ export function PerformanceChart({
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 border-b border-border-dim pb-3">
         <div className="flex items-center gap-2">
           {/* Granularity pill */}
-          <div className="inline-flex rounded-md border border-border-dim p-0.5 bg-slate-50 text-xs font-mono">
+          <div className="inline-flex gap-1 bg-slate-100 p-1 rounded-md border border-slate-300 text-xs font-mono">
             {(['daily', 'weekly', 'monthly'] as const).map((g) => (
               <button
                 key={g}
                 type="button"
                 onClick={() => onGranularityChange?.(g)}
-                className={`px-2.5 py-1 rounded capitalize transition-colors ${
+                className={`px-2.5 py-1 text-xs rounded uppercase transition-colors ${
                   granularity === g
-                    ? 'bg-white shadow-2xs font-semibold text-text-main'
-                    : 'text-slate-500 hover:text-text-main'
+                    ? 'bg-indigo-600 text-white border border-indigo-600 font-semibold shadow-2xs'
+                    : 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-100 font-medium'
                 }`}
               >
                 {g}
@@ -212,14 +212,14 @@ export function PerformanceChart({
           </div>
 
           {/* View toggle (chart vs table) */}
-          <div className="inline-flex rounded-md border border-border-dim p-0.5 bg-slate-50 text-xs font-mono">
+          <div className="inline-flex gap-1 bg-slate-100 p-1 rounded-md border border-slate-300 text-xs font-mono">
             <button
               type="button"
               onClick={() => setViewMode('chart')}
-              className={`p-1 rounded transition-colors ${
+              className={`p-1.5 rounded transition-colors ${
                 viewMode === 'chart'
-                  ? 'bg-white shadow-2xs text-primary'
-                  : 'text-slate-500 hover:text-text-main'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
+                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 hover:text-slate-950'
               }`}
               title="Chart view"
             >
@@ -228,10 +228,10 @@ export function PerformanceChart({
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`p-1 rounded transition-colors ${
+              className={`p-1.5 rounded transition-colors ${
                 viewMode === 'table'
-                  ? 'bg-white shadow-2xs text-primary'
-                  : 'text-slate-500 hover:text-text-main'
+                  ? 'bg-indigo-600 text-white font-semibold shadow-2xs'
+                  : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 hover:text-slate-950'
               }`}
               title="Table view"
             >
@@ -243,12 +243,12 @@ export function PerformanceChart({
         {/* Right side controls */}
         <div className="flex items-center gap-3 text-xs font-mono">
           {summary?.previous_series && summary.previous_series.length > 0 && (
-            <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
+            <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-800 select-none">
               <input
                 type="checkbox"
                 checked={viewChanges}
                 onChange={(e) => setViewChanges(e.target.checked)}
-                className="rounded border-border-dim text-primary focus:ring-primary h-3.5 w-3.5"
+                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
               />
               <span>Compare previous</span>
             </label>
@@ -257,7 +257,7 @@ export function PerformanceChart({
           <button
             type="button"
             onClick={handleDownloadCsv}
-            className="p-1 text-slate-500 hover:text-slate-700 rounded border border-border-dim hover:bg-slate-50"
+            className="p-1.5 text-slate-700 hover:text-slate-900 rounded border border-slate-300 bg-white hover:bg-slate-100"
             title="Download CSV"
           >
             <Download className="w-3.5 h-3.5" />
@@ -266,7 +266,7 @@ export function PerformanceChart({
           <button
             type="button"
             onClick={toggleFullscreen}
-            className="p-1 text-slate-500 hover:text-slate-700 rounded border border-border-dim hover:bg-slate-50"
+            className="p-1.5 text-slate-700 hover:text-slate-900 rounded border border-slate-300 bg-white hover:bg-slate-100"
             title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}

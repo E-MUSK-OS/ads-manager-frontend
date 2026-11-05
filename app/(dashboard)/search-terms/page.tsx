@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { money } from '@/lib/format';
 
 export default function SearchTerms() {
   const [searchTerms, setSearchTerms] = useState<any[]>([]);
@@ -46,8 +47,8 @@ export default function SearchTerms() {
                 <tr key={s.id} className="border-b">
                   <td className="p-4">{s.search_term}</td>
                   <td className="p-4">{s.clicks}</td>
-                  <td className="p-4">${s.spend}</td>
-                  <td className="p-4">${s.sales}</td>
+                  <td className="p-4">{money(s.spend)}</td>
+                  <td className="p-4">{money(s.sales)}</td>
                 </tr>
               ))}
             </tbody>

@@ -14,14 +14,14 @@ export function todayIn(tz: string): string {
 }
 
 const DEFAULT_RULES: MarketplaceRules = {
-  currency: 'USD',
-  symbol: '$',
-  locale: 'en-US',
-  tz: 'America/Los_Angeles',
-  min_budget: 1.0,
-  recommended_budget: 10.0,
-  min_bid: 0.02,
-  max_bid: 49.0,
+  currency: 'INR',
+  symbol: '₹',
+  locale: 'en-IN',
+  tz: 'Asia/Kolkata',
+  min_budget: 100.0,
+  recommended_budget: 500.0,
+  min_bid: 1.0,
+  max_bid: 5000.0,
 };
 
 interface ActiveAccountContextValue {
@@ -93,7 +93,15 @@ export function ActiveAccountProvider({ children }: { children: React.ReactNode 
   }, [fetchRulesForAccount]);
 
   useEffect(() => {
-    loadAccounts();
+    let active = true;
+    Promise.resolve().then(() => {
+      if (active) {
+        loadAccounts();
+      }
+    });
+    return () => {
+      active = false;
+    };
   }, [loadAccounts]);
 
   const setActiveAccountId = useCallback(

@@ -157,10 +157,10 @@ function CampaignsPageContent() {
             type="button"
             onClick={handleSync}
             disabled={syncing || !account}
-            className="p-2 rounded-md border border-border-dim bg-surface hover:bg-slate-50 transition-colors shadow-2xs text-slate-600 hover:text-slate-900 disabled:opacity-50"
+            className="p-2 rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800 hover:text-slate-950 disabled:opacity-50"
             title="Sync account metrics"
           >
-            <RotateCw className={`w-4 h-4 ${syncing ? 'animate-spin text-primary' : ''}`} />
+            <RotateCw className={`w-4 h-4 ${syncing ? 'animate-spin text-indigo-600' : ''}`} />
           </button>
 
           {/* Show / Hide Chart Toggle */}
@@ -169,8 +169,8 @@ function CampaignsPageContent() {
             onClick={toggleShowChart}
             className={`p-2 rounded-md border transition-colors shadow-2xs ${
               showChart
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'border-border-dim bg-surface text-slate-600 hover:bg-slate-50'
+                ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-semibold'
+                : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-100'
             }`}
             title={showChart ? 'Collapse performance chart' : 'Show performance chart'}
           >
@@ -181,7 +181,7 @@ function CampaignsPageContent() {
           <button
             type="button"
             onClick={() => setDraftsOpen(true)}
-            className="p-2 rounded-md border border-border-dim bg-surface hover:bg-slate-50 transition-colors shadow-2xs text-slate-600 hover:text-slate-900"
+            className="p-2 rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800 hover:text-slate-950"
             title="View saved drafts"
           >
             <FileText className="w-4 h-4" />
@@ -193,7 +193,7 @@ function CampaignsPageContent() {
           {/* Settings Link */}
           <Link
             href="/campaigns/settings"
-            className="p-2 rounded-md border border-border-dim bg-surface hover:bg-slate-50 transition-colors shadow-2xs text-slate-600 hover:text-slate-900"
+            className="p-2 rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800 hover:text-slate-950"
             title="Campaign settings & guardrails"
           >
             <Settings className="w-4 h-4" />
@@ -202,7 +202,7 @@ function CampaignsPageContent() {
           {/* Primary Create Campaign Button */}
           <Link
             href="/campaigns/new"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary hover:bg-indigo-700 text-white font-mono text-xs font-medium shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs font-semibold shadow-xs transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Create campaign</span>
@@ -211,7 +211,7 @@ function CampaignsPageContent() {
       </div>
 
       {/* Portfolio Switcher & Status Pills Rail */}
-      <div className="bg-surface border border-border-dim rounded-md p-2.5 flex flex-wrap items-center justify-between gap-3 font-mono text-xs shadow-2xs">
+      <div className="bg-white border border-slate-300 rounded-md p-2.5 flex flex-wrap items-center justify-between gap-3 font-mono text-xs shadow-2xs">
         {/* Left: Quick Status Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
           {[
@@ -223,6 +223,7 @@ function CampaignsPageContent() {
             { key: 'DRAFTS', label: 'Drafts', count: statusCounts.DRAFTS },
           ].map((pill) => {
             const isSelected = activeStatus === pill.key;
+            const isOobWithCount = pill.key === 'OUT_OF_BUDGET' && (pill.count || 0) > 0;
             return (
               <button
                 key={pill.key}
@@ -230,14 +231,20 @@ function CampaignsPageContent() {
                 onClick={() => handleStatusPillClick(pill.key)}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs transition-colors ${
                   isSelected
-                    ? 'bg-primary text-white font-medium shadow-2xs'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-border-dim'
+                    ? 'bg-indigo-600 text-white border border-indigo-600 font-semibold shadow-2xs'
+                    : isOobWithCount
+                    ? 'bg-red-50 text-red-800 border border-red-300 hover:bg-red-100 font-semibold'
+                    : 'bg-white text-slate-800 border border-slate-300 hover:bg-slate-100 hover:text-slate-950 font-medium'
                 }`}
               >
                 <span>{pill.label}</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] tabular-nums ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
+                  className={`px-1.5 py-0.2 rounded font-mono text-[11px] tabular-nums ${
+                    isSelected
+                      ? 'bg-indigo-800 text-white font-bold'
+                      : isOobWithCount
+                      ? 'bg-red-200 text-red-900 font-bold'
+                      : 'bg-slate-200 text-slate-800 font-semibold'
                   }`}
                 >
                   {num(pill.count || 0)}
@@ -249,12 +256,12 @@ function CampaignsPageContent() {
 
         {/* Right: Portfolio Selector */}
         <div className="flex items-center gap-2">
-          <Briefcase className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-slate-500 text-[11px] uppercase tracking-wider">Portfolio:</span>
+          <Briefcase className="w-3.5 h-3.5 text-slate-500" />
+          <span className="text-slate-700 font-semibold text-[11px] uppercase tracking-wider">Portfolio:</span>
           <select
             value={filters.portfolio || 'ALL'}
             onChange={(e) => handlePortfolioChange(e.target.value)}
-            className="border border-border-dim rounded px-2 py-1 bg-white text-xs font-mono focus:border-primary focus:outline-hidden"
+            className="border border-slate-300 rounded px-2.5 py-1 bg-white text-slate-900 text-xs font-mono focus:border-indigo-600 focus:outline-hidden"
           >
             <option value="ALL">All Portfolios</option>
             <option value="Uncategorized">Uncategorized</option>

@@ -114,7 +114,7 @@ export function AddRecommendationModal({
   };
 
   const handleSelectTemplate = (template: Template) => {
-    const defaultVal = currencySymbol === '$' ? 5 : 20;
+    const defaultVal = 20;
     const conds: Condition[] = template.conditions.map((c) => ({
       metric: c.metric,
       op: c.op,

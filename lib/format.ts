@@ -17,7 +17,7 @@ const IN_NUM_FORMATTER = new Intl.NumberFormat("en-IN");
 
 export function money(
   value: number | null | undefined,
-  _currencyOrRules?: string | any,
+  _currencyOrRules?: string | unknown,
   _locale?: string
 ): string {
   void _currencyOrRules;
@@ -42,17 +42,22 @@ export function compactMoney(
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return "—";
   }
+  const cleanSymbol =
+    !symbol || symbol === "$" || symbol === "USD" ? "₹" : symbol;
   const n = Number(value);
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
   if (abs >= 1_00_00_000) {
-    return `${sign}${symbol}${(abs / 1_00_00_000).toFixed(2)}Cr`;
+    return `${sign}${cleanSymbol}${(abs / 1_00_00_000).toFixed(2)}Cr`;
+  }
+  if (abs >= 1_00_00_000) {
+    return `${sign}${cleanSymbol}${(abs / 1_00_00_000).toFixed(2)}Cr`;
   }
   if (abs >= 1_00_000) {
-    return `${sign}${symbol}${(abs / 1_00_000).toFixed(2)}L`;
+    return `${sign}${cleanSymbol}${(abs / 1_00_000).toFixed(2)}L`;
   }
   if (abs >= 1_000) {
-    return `${sign}${symbol}${(abs / 1_000).toFixed(1)}K`;
+    return `${sign}${cleanSymbol}${(abs / 1_000).toFixed(1)}K`;
   }
   return INR_FORMATTER.format(n);
 }

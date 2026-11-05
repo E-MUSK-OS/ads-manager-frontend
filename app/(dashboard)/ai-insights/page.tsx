@@ -11,8 +11,8 @@ export default function AiInsights() {
   const [loading, setLoading] = useState(false);
 
   const [suggestions, setSuggestions] = useState([
-    { id: 1, type: 'BID_OPTIMIZATION', target: 'Keyword: "wireless earbuds"', impact: 'High', description: 'ACOS is currently 42% (above 30% target). Recommend decreasing bid from $1.50 to $1.15 to improve efficiency.', status: 'PENDING' },
-    { id: 2, type: 'BUDGET_REALLOCATION', target: 'Campaign: Q4 Electronics', impact: 'Medium', description: 'Campaign capping out by 2 PM daily with 15% ROAS. Recommend shifting $50/day from underperforming "Accessories" campaign.', status: 'PENDING' },
+    { id: 1, type: 'BID_OPTIMIZATION', target: 'Keyword: "wireless earbuds"', impact: 'High', description: 'ACOS is currently 42% (above 30% target). Recommend decreasing bid from ₹25.00 to ₹18.00 to improve efficiency.', status: 'PENDING' },
+    { id: 2, type: 'BUDGET_REALLOCATION', target: 'Campaign: Q4 Electronics', impact: 'Medium', description: 'Campaign capping out by 2 PM daily with 15% ROAS. Recommend shifting ₹1,500/day from underperforming "Accessories" campaign.', status: 'PENDING' },
   ]);
 
   const handleSend = async (e: React.FormEvent) => {

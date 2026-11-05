@@ -2,8 +2,9 @@
 import { useEffect, useState, use } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, Target, DollarSign, TrendingUp, Star, Package, ChevronLeft, ChevronRight, Hash, ArrowLeft } from 'lucide-react';
+import { Activity, Target, IndianRupee, TrendingUp, Star, Package, ChevronLeft, ChevronRight, Hash, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { money, num } from '@/lib/format';
 
 export default function ProductDetail({ params }: { params: Promise<{ productId: string }> }) {
   const resolvedParams = use(params);
@@ -66,8 +67,8 @@ export default function ProductDetail({ params }: { params: Promise<{ productId:
     return <div className="p-8">Product not found.</div>;
   }
 
-  const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
-  const formatNumber = (val: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(val);
+  const formatCurrency = (val: number) => money(val);
+  const formatNumber = (val: number) => num(val);
 
   // Distribution chart data
   const distData = [5, 4, 3, 2, 1].map(stars => ({
@@ -77,7 +78,7 @@ export default function ProductDetail({ params }: { params: Promise<{ productId:
 
   // Trend chart data (format dates)
   const trendData = reviewsData.trend.map((t: any) => ({
-    date: new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    date: new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
     rating: t.rating
   }));
 
@@ -141,7 +142,7 @@ export default function ProductDetail({ params }: { params: Promise<{ productId:
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
           <div className="flex justify-between items-start mb-2">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Spend</div>
-            <DollarSign className="w-4 h-4 text-slate-400" />
+            <IndianRupee className="w-4 h-4 text-slate-400" />
           </div>
           <div className="text-2xl font-mono font-bold text-slate-900">{formatCurrency(product.spend)}</div>
         </div>

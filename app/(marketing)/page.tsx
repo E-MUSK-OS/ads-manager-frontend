@@ -54,11 +54,11 @@ export default function MarketingPage() {
                   {/* Metric Cards integrated onto the grid */}
                   <div className="bg-surface border border-border-dim p-4 rounded-md shadow-sm">
                     <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Spend</div>
-                    <div className="text-2xl font-mono font-bold text-spend">$12,450.00</div>
+                    <div className="text-2xl font-mono font-bold text-spend">₹1,24,500.00</div>
                   </div>
                   <div className="bg-surface border border-border-dim p-4 rounded-md shadow-sm">
                     <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Sales</div>
-                    <div className="text-2xl font-mono font-bold text-sales">$48,230.00</div>
+                    <div className="text-2xl font-mono font-bold text-sales">₹4,82,300.00</div>
                   </div>
                   <div className="bg-surface border border-border-dim p-4 rounded-md shadow-sm">
                     <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">ACOS</div>

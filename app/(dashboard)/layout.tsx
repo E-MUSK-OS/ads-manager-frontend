@@ -27,15 +27,7 @@ function AccountSwitcher() {
     );
   }
 
-  const getMarketplaceLabel = (mp: string) => {
-    switch (mp) {
-      case 'IN': return 'India';
-      case 'US': return 'United States';
-      case 'UK': return 'United Kingdom';
-      case 'DE': return 'Germany';
-      default: return mp;
-    }
-  };
+  const getMarketplaceLabel = (_mp?: string) => 'India';
 
   if (accounts.length === 1) {
     const acc = accounts[0];
@@ -43,7 +35,7 @@ function AccountSwitcher() {
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-border-dim font-mono text-xs text-text-main font-medium">
         <span>{getMarketplaceLabel(acc.marketplace)}</span>
         <span className="text-slate-400">·</span>
-        <span className="text-slate-600">{rules.currency}</span>
+        <span className="text-slate-600">INR</span>
       </div>
     );
   }
@@ -55,14 +47,11 @@ function AccountSwitcher() {
         onChange={(e) => setActiveAccountId(Number(e.target.value))}
         className="text-xs font-mono font-medium pl-2.5 pr-6 py-1 bg-slate-100 hover:bg-slate-200 border border-border-dim rounded-md text-text-main outline-none focus:ring-1 focus:ring-primary cursor-pointer appearance-none transition-colors"
       >
-        {accounts.map((a) => {
-          const curr = a.marketplace === 'IN' ? 'INR' : a.marketplace === 'UK' ? 'GBP' : a.marketplace === 'DE' ? 'EUR' : 'USD';
-          return (
-            <option key={a.id} value={a.id}>
-              {getMarketplaceLabel(a.marketplace)} · {curr}
-            </option>
-          );
-        })}
+        {accounts.map((a) => (
+          <option key={a.id} value={a.id}>
+            {getMarketplaceLabel(a.marketplace)} · INR
+          </option>
+        ))}
       </select>
       <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
     </div>

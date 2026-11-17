@@ -36,6 +36,8 @@ export default function Pricing() {
           <button className="w-full py-2 bg-slate-900 text-white rounded hover:bg-slate-800 font-medium transition-colors">Contact Us</button>
         </div>
       </div>
+      {/* CONFIRM with your CA: are prices exclusive or inclusive of GST, and the correct rate */}
+      <p className="mt-8 text-xs text-slate-500 font-medium">Prices in INR. GST as applicable.</p>
     </div>
   )
 }

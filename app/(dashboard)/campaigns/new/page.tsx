@@ -290,7 +290,7 @@ function CreateCampaignContent() {
     }
   };
 
-  const countryName = account?.marketplace === 'IN' ? 'India' : 'United States';
+  const countryName = 'India';
   const nextStepName = STEPS[draft.step]?.title || 'Next';
 
   return (

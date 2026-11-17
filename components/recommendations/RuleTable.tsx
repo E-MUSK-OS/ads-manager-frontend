@@ -5,6 +5,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { describeCondition, describeRuleAction, describeScopeBadge } from './describe';
 import type { Rule, Meta } from '@/lib/types/recommendation';
+import { formatDateIN } from '@/lib/format';
 
 interface RuleTableProps {
   rules: Rule[];
@@ -38,7 +39,7 @@ export function formatRelativeTime(dateStr: string | null): string {
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 30) return `${diffDays} days ago`;
-  return date.toLocaleDateString();
+  return formatDateIN(date);
 }
 
 export function RuleTable({

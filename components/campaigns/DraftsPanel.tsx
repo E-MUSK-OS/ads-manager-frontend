@@ -8,6 +8,7 @@ import type { CampaignDraftRecord } from '@/lib/types/campaign';
 import { useActiveAccount } from '@/lib/useActiveAccount';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { formatDateTimeIN } from '@/lib/format';
 
 interface DraftsPanelProps {
   open: boolean;
@@ -107,7 +108,7 @@ export function DraftsPanel({ open, onClose }: DraftsPanelProps) {
             </div>
           ) : (
             drafts.map((d) => {
-              const dateStr = new Date(d.updated_at).toLocaleString();
+              const dateStr = formatDateTimeIN(d.updated_at);
               const stepName = STEP_NAMES[d.step] || `Step ${d.step}`;
 
               return (

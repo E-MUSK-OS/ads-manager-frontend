@@ -4,7 +4,7 @@ import { apiClient } from '@/lib/api-client';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Activity, Target, IndianRupee, TrendingUp, Star, Package, ChevronLeft, ChevronRight, Hash, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { money, num } from '@/lib/format';
+import { money, num, formatDateIN } from '@/lib/format';
 
 export default function ProductDetail({ params }: { params: Promise<{ productId: string }> }) {
   const resolvedParams = use(params);
@@ -238,7 +238,7 @@ export default function ProductDetail({ params }: { params: Promise<{ productId:
                     <p className="text-slate-400 italic text-xs">No written review.</p>
                   )}
                   <div className="mt-2 text-[10px] text-slate-400 font-mono">
-                    {new Date(r.review_date).toLocaleDateString()}
+                    {formatDateIN(r.review_date)}
                   </div>
                 </div>
               ))}
@@ -280,8 +280,8 @@ export default function ProductDetail({ params }: { params: Promise<{ productId:
                             {kw.match_type}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-700">${kw.spend.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right font-mono text-slate-700">${kw.sales.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-slate-700">{money(kw.spend)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-slate-700">{money(kw.sales)}</td>
                         <td className="px-4 py-3 text-right font-mono font-bold text-slate-900">{kw.acos.toFixed(1)}%</td>
                       </tr>
                     ))

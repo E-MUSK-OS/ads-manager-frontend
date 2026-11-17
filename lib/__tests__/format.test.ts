@@ -1,7 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { money, moneyWhole, compactMoney, num, pct, ratio } from '../format';
+import { money, moneyWhole, compactMoney, num, pct, ratio, formatDateIN, formatDateTimeIN } from '../format';
 
 describe('Site-Wide Indian Currency & Number Formatter (lib/format.ts)', () => {
+  it('formatDateIN returns a DD Mon YYYY style string for a known UTC date and em-dash for null/invalid', () => {
+    // 2026-08-15T12:00:00Z in Asia/Kolkata is 15 Aug 2026
+    const res = formatDateIN('2026-08-15T12:00:00Z');
+    expect(res).toContain('15');
+    expect(res).toContain('Aug');
+    expect(res).toContain('2026');
+    expect(formatDateIN(null)).toBe('—');
+    expect(formatDateIN(undefined)).toBe('—');
+    expect(formatDateIN('invalid-date')).toBe('—');
+  });
+
+  it('money(1234567.5) contains ₹ and 12,34,567', () => {
+    const formatted = money(1234567.5).replace(/\u00a0/g, ' ');
+    expect(formatted).toContain('₹');
+    expect(formatted).toContain('12,34,567');
+  });
+
+  it('compactMoney(12500000) ends in Cr', () => {
+    const res = compactMoney(12500000);
+    expect(res.endsWith('Cr')).toBe(true);
+  });
   it('formats money in INR with 2 decimal places and en-IN digit grouping', () => {
     // Note: Intl formatting may use non-breaking space (U+00A0) or regular space
     const formatted = money(125450).replace(/\u00a0/g, ' ');

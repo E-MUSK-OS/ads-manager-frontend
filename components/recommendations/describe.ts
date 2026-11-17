@@ -63,7 +63,7 @@ export function formatMetricNumber(val: number | null | undefined, unit?: 'money
   
   if (unit === 'money') {
     const isWhole = Number.isInteger(val);
-    const formatted = val.toLocaleString(undefined, {
+    const formatted = val.toLocaleString("en-IN", {
       minimumFractionDigits: isWhole ? 0 : 2,
       maximumFractionDigits: 2,
     });
@@ -75,7 +75,7 @@ export function formatMetricNumber(val: number | null | undefined, unit?: 'money
   if (unit === 'ratio') {
     return `${val}×`;
   }
-  return val.toLocaleString();
+  return val.toLocaleString("en-IN");
 }
 
 export function describeCondition(
@@ -288,7 +288,7 @@ export function describeProjection(
 ): string | null {
   if (!projection || !projection.monthly_equivalent) return null;
   const rounded = Math.round(projection.monthly_equivalent);
-  return `≈ ${currencySymbol}${rounded.toLocaleString()} spent with no sales in 30 days at this rate`;
+  return `≈ ${currencySymbol}${rounded.toLocaleString("en-IN")} spent with no sales in 30 days at this rate`;
 }
 
 export function describeEvidence(
@@ -299,7 +299,7 @@ export function describeEvidence(
   if (!metrics) return [];
 
   const spend = metrics.spend !== undefined && metrics.spend !== null
-    ? `${currencySymbol}${Number(metrics.spend).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
+    ? `${currencySymbol}${Number(metrics.spend).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
     : `${currencySymbol}0`;
 
   const clicks = metrics.clicks !== undefined && metrics.clicks !== null ? String(metrics.clicks) : '0';

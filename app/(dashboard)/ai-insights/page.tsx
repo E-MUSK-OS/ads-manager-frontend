@@ -25,7 +25,10 @@ export default function AiInsights() {
     setLoading(true);
 
     try {
-      const res = await apiClient(`/ai/chat?message=${encodeURIComponent(chat)}`, { method: 'POST' });
+      const res = await apiClient('/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message: chat }),
+      });
       setMessages([...newMessages, {role: 'assistant', content: res.response}]);
     } catch (err) {
       setMessages([...newMessages, {role: 'assistant', content: 'Connection to Intelligence core failed. Please retry.'}]);
@@ -122,25 +125,28 @@ export default function AiInsights() {
           )}
         </div>
         
-        <form onSubmit={handleSend} className="p-4 border-t border-slate-800 bg-slate-900 flex gap-3 items-center">
-          <div className="flex-1 relative">
-            <ArrowRight className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" />
-            <input 
-              type="text" 
-              value={chat} 
-              onChange={e => setChat(e.target.value)} 
-              className="w-full pl-9 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-md text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono text-sm transition-colors" 
-              placeholder="Query the system..." 
-              disabled={loading} 
-            />
+        <form onSubmit={handleSend} className="p-4 border-t border-slate-800 bg-slate-900 flex flex-col gap-2">
+          <div className="flex gap-3 items-center w-full">
+            <div className="flex-1 relative">
+              <ArrowRight className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" />
+              <input 
+                type="text" 
+                value={chat} 
+                onChange={e => setChat(e.target.value)} 
+                className="w-full pl-9 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-md text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono text-sm transition-colors" 
+                placeholder="Query the system..." 
+                disabled={loading} 
+              />
+            </div>
+            <button 
+              type="submit" 
+              disabled={loading || !chat.trim()} 
+              className="p-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+            >
+              <Send className="w-4 h-4" />
+            </button>
           </div>
-          <button 
-            type="submit" 
-            disabled={loading || !chat.trim()} 
-            className="p-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          <p className="text-xs text-slate-500">Don&apos;t enter personal or customer information.</p>
         </form>
       </div>
     </div>

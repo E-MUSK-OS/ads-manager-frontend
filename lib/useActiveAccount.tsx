@@ -5,11 +5,11 @@ import { apiClient } from './api-client';
 import { AdsAccount, MarketplaceRules } from './types/campaign';
 import { getAccessToken } from './auth';
 
-export function todayIn(tz: string): string {
+export function todayIn(tz: string = 'Asia/Kolkata'): string {
   try {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'Asia/Kolkata' }).format(new Date());
   } catch {
-    return new Intl.DateTimeFormat('en-CA').format(new Date());
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
   }
 }
 

@@ -42,14 +42,15 @@ export function compactMoney(
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
     return "—";
   }
+  const rawSymbol = symbol;
+  if (process.env.NODE_ENV !== "production" && (rawSymbol === "$" || rawSymbol === "USD")) {
+    console.warn("Non-INR currency symbol passed; displaying ₹ instead. Fix the caller.");
+  }
   const cleanSymbol =
     !symbol || symbol === "$" || symbol === "USD" ? "₹" : symbol;
   const n = Number(value);
   const abs = Math.abs(n);
   const sign = n < 0 ? "-" : "";
-  if (abs >= 1_00_00_000) {
-    return `${sign}${cleanSymbol}${(abs / 1_00_00_000).toFixed(2)}Cr`;
-  }
   if (abs >= 1_00_00_000) {
     return `${sign}${cleanSymbol}${(abs / 1_00_00_000).toFixed(2)}Cr`;
   }
@@ -95,3 +96,19 @@ export function ratio(
 
 export const currency = money;
 export const indianCompactNumber = compactMoney;
+
+const IST = "Asia/Kolkata";
+
+export function formatDateIN(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-IN", { timeZone: IST, day: "2-digit", month: "short", year: "numeric" });
+}
+
+export function formatDateTimeIN(value: string | number | Date | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-IN", { timeZone: IST, day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}

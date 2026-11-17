@@ -47,6 +47,9 @@ export function MoneyInput({
 }: MoneyInputProps) {
   // Normalize any non-Indian currency signs ($ or USD) to ₹
   const rawSymbol = currencySymbol || symbol || '₹';
+  if (process.env.NODE_ENV !== "production" && (rawSymbol === "$" || rawSymbol === "USD")) {
+    console.warn("Non-INR currency symbol passed; displaying ₹ instead. Fix the caller.");
+  }
   const displaySymbol = rawSymbol === '$' || rawSymbol === 'USD' ? '₹' : rawSymbol;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

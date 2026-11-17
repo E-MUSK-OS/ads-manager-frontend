@@ -36,7 +36,12 @@ export default function MarketingPage() {
                 <div className="w-3 h-3 rounded-full bg-amber-400"></div>
                 <div className="w-3 h-3 rounded-full bg-emerald-400"></div>
               </div>
-              <div className="font-mono text-xs text-slate-500 tracking-wider">COMMAND CENTER // LIVE METRICS</div>
+              <div className="flex-1 flex justify-between items-center">
+                <div className="font-mono text-xs text-slate-500 tracking-wider">COMMAND CENTER // INTERFACE PREVIEW</div>
+                <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-semibold border border-slate-300">
+                  Sample Data (Illustrative)
+                </span>
+              </div>
             </div>
             
             <div className="flex bg-graph-paper min-h-[400px]">

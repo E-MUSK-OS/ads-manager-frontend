@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Popover } from '@/components/ui/Popover';
-import { Sliders, Eye, Clock } from 'lucide-react';
+import { Sliders, Eye, Clock, Pause, Play, Archive } from 'lucide-react';
 
 export interface RowMenuCampaign {
   id: string | number;
@@ -17,6 +17,7 @@ export interface RowMenuProps {
   campaign: RowMenuCampaign;
   onBidThreshold?: (campaign: RowMenuCampaign) => void;
   onHourlyTracking?: (campaign: RowMenuCampaign) => void;
+  onUpdateStatus?: (id: number, state: 'ENABLED' | 'PAUSED' | 'ARCHIVED') => void;
   disabled?: boolean;
 }
 
@@ -24,6 +25,7 @@ export function RowMenu({
   campaign,
   onBidThreshold,
   onHourlyTracking,
+  onUpdateStatus,
   disabled = false,
 }: RowMenuProps) {
   const router = useRouter();
@@ -115,6 +117,51 @@ export function RowMenu({
               <Clock className="w-3.5 h-3.5 text-slate-500" />
               <span>Hourly Tracking</span>
             </button>
+
+            {/* 4. Pause / Enable Campaign */}
+            {campaign.state !== 'ARCHIVED' && onUpdateStatus && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-100 transition-colors font-medium text-slate-800"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  close();
+                  onUpdateStatus(Number(campaign.id), campaign.state === 'ENABLED' ? 'PAUSED' : 'ENABLED');
+                }}
+              >
+                {campaign.state === 'ENABLED' ? (
+                  <>
+                    <Pause className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Pause Campaign</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Enable Campaign</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* 5. Archive Campaign */}
+            {campaign.state !== 'ARCHIVED' && onUpdateStatus && (
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-red-50 hover:text-red-700 transition-colors font-medium text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  close();
+                  if (confirm(`Are you sure you want to archive "${campaign.name}"? Archived campaigns cannot be modified.`)) {
+                    onUpdateStatus(Number(campaign.id), 'ARCHIVED');
+                  }
+                }}
+              >
+                <Archive className="w-3.5 h-3.5 text-red-500" />
+                <span>Archive Campaign</span>
+              </button>
+            )}
           </div>
         )}
       </Popover>

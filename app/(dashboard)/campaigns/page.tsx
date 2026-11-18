@@ -110,11 +110,15 @@ function CampaignsPageContent() {
     filters.delivery_status ||
     (filters.status && filters.status.length === 1 && (filters.status[0] === 'PAUSED' || filters.status[0] === 'ARCHIVED' || filters.status[0] === 'DELIVERING' || filters.status[0] === 'OUT_OF_BUDGET')
       ? filters.status[0]
-      : 'ALL');
+      : filters.status && filters.status.length === 1 && filters.status[0] === 'ALL'
+      ? 'ALL'
+      : filters.delivery_status === undefined && (!filters.status || filters.status.length === 0)
+      ? 'ALL'
+      : 'DELIVERING');
 
   const handleStatusPillClick = (statusKey: string) => {
     if (statusKey === 'ALL') {
-      updateFilters({ status: [], delivery_status: undefined });
+      updateFilters({ status: ['ALL'], delivery_status: undefined });
     } else if (statusKey === 'DELIVERING' || statusKey === 'OUT_OF_BUDGET') {
       updateFilters({ status: [], delivery_status: statusKey });
     } else if (statusKey === 'PAUSED' || statusKey === 'ARCHIVED') {

@@ -1207,6 +1207,7 @@ export function CampaignTable({
                       >
                         <RowMenu
                           campaign={c}
+                          onUpdateStatus={onUpdateStatus}
                           onBidThreshold={(cmp) => {
                             if (onBidThreshold) onBidThreshold(c);
                             setBidThresholdCampaign(c);

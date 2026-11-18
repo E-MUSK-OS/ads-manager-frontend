@@ -114,6 +114,14 @@ export function useCampaignList() {
     const statusParam = searchParams.getAll('status');
     const healthParam = searchParams.getAll('health');
     const targetingParam = searchParams.getAll('targeting_type');
+    const deliveryStatusParam = searchParams.get('delivery_status');
+
+    // When user logs on / navigates without explicit status or delivery_status in URL, default to 'DELIVERING'
+    const hasStatusParam = statusParam.length > 0;
+    const hasDeliveryParam = deliveryStatusParam !== null;
+    const initialDeliveryStatus =
+      !hasStatusParam && !hasDeliveryParam ? 'DELIVERING' : (deliveryStatusParam || undefined);
+
     return {
       status: statusParam,
       health: healthParam,
@@ -122,7 +130,7 @@ export function useCampaignList() {
       portfolio: searchParams.get('portfolio') || undefined,
       bidding_strategy: searchParams.get('bidding_strategy') || undefined,
       campaign_type: searchParams.get('campaign_type') || undefined,
-      delivery_status: searchParams.get('delivery_status') || undefined,
+      delivery_status: initialDeliveryStatus,
       min_spend: searchParams.get('min_spend') ? Number(searchParams.get('min_spend')) : undefined,
       max_spend: searchParams.get('max_spend') ? Number(searchParams.get('max_spend')) : undefined,
       min_sales: searchParams.get('min_sales') ? Number(searchParams.get('min_sales')) : undefined,
@@ -286,13 +294,18 @@ export function useCampaignList() {
     };
 
     if (filters.search) queryParams.q = filters.search;
-    if (filters.status.length) queryParams.status = filters.status;
+    if (filters.status.length) {
+      const realStatus = filters.status.filter((s) => s.toUpperCase() !== 'ALL');
+      if (realStatus.length) queryParams.status = realStatus;
+    }
     if (filters.health.length) queryParams.health = filters.health;
     if (filters.targeting_type.length) queryParams.targeting_type = filters.targeting_type;
     if (filters.portfolio) queryParams.portfolio = filters.portfolio;
     if (filters.bidding_strategy) queryParams.bidding_strategy = filters.bidding_strategy;
     if (filters.campaign_type) queryParams.campaign_type = filters.campaign_type;
-    if (filters.delivery_status) queryParams.delivery_status = filters.delivery_status;
+    if (filters.delivery_status && filters.delivery_status.toUpperCase() !== 'ALL') {
+      queryParams.delivery_status = filters.delivery_status;
+    }
 
     const numericKeys = [
       'min_spend', 'max_spend', 'min_sales', 'max_sales',
@@ -437,7 +450,7 @@ export function useCampaignList() {
     [campaigns, showToast]
   );
 
-  // Optimistic status update with rollback
+  // Optimistic status update with rollback & fast sync
   const handleUpdateStatus = async (id: number, newState: CampaignState) => {
     const original = campaigns.find((c) => c.id === id);
     if (!original) return;
@@ -447,16 +460,58 @@ export function useCampaignList() {
       return;
     }
 
+    const nextDeliveryStatus =
+      newState === 'PAUSED' ? 'PAUSED' : newState === 'ARCHIVED' ? 'ARCHIVED' : 'DELIVERING';
+
+    // 1. Instant optimistic update on campaign state & delivery status
     setCampaigns((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, state: newState, status_label: newState } : c))
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              state: newState,
+              status_label: newState,
+              delivery_status: nextDeliveryStatus,
+            }
+          : c
+      )
     );
 
+    // 2. Instant optimistic update on status counts
+    setMeta((prev: any) => {
+      if (!prev || !prev.status_counts) return prev;
+      const counts = { ...prev.status_counts };
+      const oldDelivery = (original.delivery_status || (original.state === 'PAUSED' ? 'PAUSED' : 'DELIVERING')).toUpperCase();
+      if (oldDelivery === 'DELIVERING') counts.DELIVERING = Math.max(0, (counts.DELIVERING || 1) - 1);
+      else if (oldDelivery === 'OUT_OF_BUDGET') counts.OUT_OF_BUDGET = Math.max(0, (counts.OUT_OF_BUDGET || 1) - 1);
+      else if (original.state === 'PAUSED') counts.PAUSED = Math.max(0, (counts.PAUSED || 1) - 1);
+      else if (original.state === 'ARCHIVED') counts.ARCHIVED = Math.max(0, (counts.ARCHIVED || 1) - 1);
+
+      if (newState === 'PAUSED') counts.PAUSED = (counts.PAUSED || 0) + 1;
+      else if (newState === 'ARCHIVED') counts.ARCHIVED = (counts.ARCHIVED || 0) + 1;
+      else counts.DELIVERING = (counts.DELIVERING || 0) + 1;
+
+      return { ...prev, status_counts: counts };
+    });
+
     try {
-      await updateCampaignState(id, newState);
-      showToast({ title: 'Status updated', message: `Campaign "${original.name}" is now ${newState.toLowerCase()}.`, type: 'success' });
+      const updated = await updateCampaignState(id, newState);
+      if (updated) {
+        setCampaigns((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, ...updated } : c))
+        );
+      }
+      showToast({
+        title: 'Status updated',
+        message: `Campaign "${original.name}" is now ${newState.toLowerCase()}.`,
+        type: 'success',
+      });
+      // 3. Fast background refresh of report, summary, and meta
+      await fetchData();
     } catch (err: any) {
       setCampaigns((prev) => prev.map((c) => (c.id === id ? original : c)));
       showToast({ title: 'Update failed', message: err?.message || 'Failed to update campaign state', type: 'error' });
+      await fetchData();
     }
   };
 
@@ -504,8 +559,23 @@ export function useCampaignList() {
     }
   };
 
-  // Bulk actions
+  // Bulk actions with instant optimistic status update
   const handleBulkAction = async (ids: number[], action: string, value?: number | string) => {
+    if (action === 'PAUSE' || action === 'ARCHIVE' || action === 'ENABLE') {
+      const nextState: CampaignState =
+        action === 'PAUSE' ? 'PAUSED' : action === 'ARCHIVE' ? 'ARCHIVED' : 'ENABLED';
+      const nextDelivery =
+        action === 'PAUSE' ? 'PAUSED' : action === 'ARCHIVE' ? 'ARCHIVED' : 'DELIVERING';
+
+      setCampaigns((prev) =>
+        prev.map((c) =>
+          ids.includes(c.id) && c.state !== 'ARCHIVED'
+            ? { ...c, state: nextState, status_label: nextState, delivery_status: nextDelivery }
+            : c
+        )
+      );
+    }
+
     try {
       const res = await bulkAction({ ids, action, value: value as any });
       const succeeded = res.results.filter((r) => r.ok).length;
@@ -524,6 +594,7 @@ export function useCampaignList() {
       await fetchData();
     } catch (err: any) {
       showToast({ title: 'Bulk action error', message: err?.message || 'Action failed', type: 'error' });
+      await fetchData();
     }
   };
 

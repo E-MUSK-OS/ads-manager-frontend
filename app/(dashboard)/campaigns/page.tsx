@@ -108,7 +108,7 @@ function CampaignsPageContent() {
 
   const activeStatus =
     filters.delivery_status ||
-    (filters.status && filters.status.length === 1 && (filters.status[0] === 'PAUSED' || filters.status[0] === 'ARCHIVED')
+    (filters.status && filters.status.length === 1 && (filters.status[0] === 'PAUSED' || filters.status[0] === 'ARCHIVED' || filters.status[0] === 'DELIVERING' || filters.status[0] === 'OUT_OF_BUDGET')
       ? filters.status[0]
       : 'ALL');
 

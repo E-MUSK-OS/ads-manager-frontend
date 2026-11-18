@@ -115,7 +115,7 @@ export function useCampaignList() {
     const healthParam = searchParams.getAll('health');
     const targetingParam = searchParams.getAll('targeting_type');
     return {
-      status: statusParam.length ? statusParam : ['ENABLED'],
+      status: statusParam,
       health: healthParam,
       targeting_type: targetingParam,
       search: searchParams.get('q') || '',

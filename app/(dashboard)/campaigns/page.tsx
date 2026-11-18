@@ -81,9 +81,7 @@ function CampaignsPageContent() {
         if (prev.length <= 1) return prev; // min 1
         return prev.filter((m) => m !== metric);
       }
-      if (prev.length >= 4) {
-        return [...prev.slice(1), metric]; // max 4 per Q14
-      }
+      
       return [...prev, metric];
     });
   };

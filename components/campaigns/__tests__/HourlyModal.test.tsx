@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HourlyModal } from '../HourlyModal';
 import * as apiClient from '@/lib/api-client';
@@ -28,22 +28,10 @@ vi.mock('@/lib/useActiveAccount', () => ({
   }),
 }));
 
-// Mock recharts for JSDOM
-vi.mock('recharts', async () => {
-  const actual = await vi.importActual<typeof import('recharts')>('recharts');
-  return {
-    ...actual,
-    ResponsiveContainer: ({ children }: { children: React.ReactNode }) => (
-      <div style={{ width: 800, height: 300 }}>{children}</div>
-    ),
-  };
-});
-
 // Mock api-client
 vi.mock('@/lib/api-client', () => ({
   getHourlyStatus: vi.fn(),
   getHourlySummary: vi.fn(),
-  getHourlyTrends: vi.fn(),
   getHourlyMatrix: vi.fn(),
 }));
 
@@ -71,12 +59,6 @@ describe('HourlyModal (Phase 7 / D14 / 7.4)', () => {
       start: '2026-11-12',
       end: '2026-11-18',
       totals: {},
-    });
-    vi.mocked(apiClient.getHourlyTrends).mockResolvedValueOnce({
-      is_connected: false,
-      has_data: false,
-      series: [],
-      peaks_and_lows: {},
     });
     vi.mocked(apiClient.getHourlyMatrix).mockResolvedValueOnce({
       is_connected: false,
@@ -130,12 +112,6 @@ describe('HourlyModal (Phase 7 / D14 / 7.4)', () => {
       end: '2026-11-18',
       totals: {},
     });
-    vi.mocked(apiClient.getHourlyTrends).mockResolvedValueOnce({
-      is_connected: true,
-      has_data: false,
-      series: [],
-      peaks_and_lows: {},
-    });
     vi.mocked(apiClient.getHourlyMatrix).mockResolvedValueOnce({
       is_connected: true,
       has_data: false,
@@ -164,7 +140,7 @@ describe('HourlyModal (Phase 7 / D14 / 7.4)', () => {
     });
   });
 
-  it('renders full connected view with KPIs, trends, Peak/Low facts, and heatmap', async () => {
+  it('renders full connected view with KPI selection buttons driving heatmap', async () => {
     vi.mocked(apiClient.getHourlyStatus).mockResolvedValueOnce({
       is_connected: true,
       status: 'ACTIVE',
@@ -187,33 +163,6 @@ describe('HourlyModal (Phase 7 / D14 / 7.4)', () => {
         cpc: 5.0,
         roas: 6.67,
         acos: 15.0,
-      },
-    });
-    vi.mocked(apiClient.getHourlyTrends).mockResolvedValueOnce({
-      is_connected: true,
-      has_data: true,
-      series: Array.from({ length: 24 }).map((_, h) => ({
-        hour: h,
-        label: `${String(h).padStart(2, '0')}:00`,
-        impressions: 500,
-        clicks: 20,
-        spend: 100.0,
-        orders: 1,
-        sales: h === 14 ? 5000.0 : 400.0,
-        ctr: 4.0,
-        cpc: 5.0,
-        roas: 4.0,
-        acos: 25.0,
-      })),
-      peaks_and_lows: {
-        sales: {
-          peak_hour: 14,
-          peak_label: '14:00',
-          peak_value: 5000.0,
-          low_hour: 3,
-          low_label: '03:00',
-          low_value: 0.0,
-        },
       },
     });
     vi.mocked(apiClient.getHourlyMatrix).mockResolvedValueOnce({
@@ -247,7 +196,7 @@ describe('HourlyModal (Phase 7 / D14 / 7.4)', () => {
     const { container } = render(<HourlyModal {...defaultProps} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Hourly Performance Trends (00:00 – 23:00)')).toBeDefined();
+      expect(screen.getByText('Date × Hour Matrix Heatmap')).toBeDefined();
     });
 
     // Check KPI cards
@@ -255,10 +204,7 @@ describe('HourlyModal (Phase 7 / D14 / 7.4)', () => {
     expect(screen.getAllByText('Clicks').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Spend').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Sales').length).toBeGreaterThanOrEqual(1);
-
-    // Plain fact peak & low badges (max & min facts, not recommendations)
-    expect(screen.getByText(/Peak: 14:00/)).toBeDefined();
-    expect(screen.getByText(/Low: 03:00/)).toBeDefined();
+    expect(screen.getByText('Active: Sales')).toBeDefined();
 
     // Heatmap elements
     expect(screen.getByText('Date × Hour Matrix Heatmap')).toBeDefined();
@@ -269,6 +215,31 @@ describe('HourlyModal (Phase 7 / D14 / 7.4)', () => {
     expect(
       screen.getByText(/Hourly data collected since subscription time. Orders use Amazon 7-day attribution/)
     ).toBeDefined();
+
+    // Verify clicking another KPI card (e.g. Clicks) triggers matrix load
+    vi.mocked(apiClient.getHourlyMatrix).mockResolvedValueOnce({
+      is_connected: true,
+      has_data: true,
+      metric: 'clicks',
+      start: '2026-11-12',
+      end: '2026-11-18',
+      dates: ['2026-11-17', '2026-11-18'],
+      rows: [],
+      summary_row: { date: 'Total', hours: {}, daily_total: 0 },
+      min_value: 0,
+      max_value: 0,
+    });
+
+    const clicksButton = screen.getAllByRole('button').find((b) => b.textContent?.includes('Clicks'));
+    expect(clicksButton).toBeDefined();
+    if (clicksButton) {
+      fireEvent.click(clicksButton);
+      await waitFor(() => {
+        expect(apiClient.getHourlyMatrix).toHaveBeenCalledWith(
+          expect.objectContaining({ metric: 'clicks' })
+        );
+      });
+    }
 
     // Verify NO Best/Worst wording exists
     const textContent = container.textContent?.toLowerCase() || '';

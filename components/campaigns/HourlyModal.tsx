@@ -85,8 +85,8 @@ export function HourlyModal({ open, onClose, campaignId, campaignName }: HourlyM
   const [trends, setTrends] = useState<HourlyTrendsResponse | null>(null);
   const [matrix, setMatrix] = useState<HourlyMatrixResponse | null>(null);
 
-  // Selected chart metric chips (allow selecting all)
-  const [selectedChartMetrics, setSelectedChartMetrics] = useState<MetricType[]>(['sales', 'spend']);
+  // Selected chart metrics (allow selecting all)
+  const [selectedChartMetrics, setSelectedChartMetrics] = useState<MetricType[]>(['sales']);
 
   // Selected heatmap metric
   const [heatmapMetric, setHeatmapMetric] = useState<MetricType>('sales');
@@ -95,13 +95,48 @@ export function HourlyModal({ open, onClose, campaignId, campaignName }: HourlyM
     setMounted(true);
   }, []);
 
-  const handleToggleChartMetric = (metric: MetricType) => {
+  const loadMatrixData = useCallback(async (metric: MetricType) => {
+    if (!account?.id) return;
+    try {
+      const mat = await getHourlyMatrix({
+        ads_account_id: account.id,
+        campaign_id: campaignId,
+        start: dateRange.start,
+        end: dateRange.end,
+        metric,
+      });
+      setMatrix(mat);
+    } catch (err) {
+      console.error('Failed to load matrix:', err);
+    }
+  }, [account?.id, campaignId, dateRange.start, dateRange.end]);
+
+  const handleKpiCardClick = (metric: MetricType) => {
     setSelectedChartMetrics((prev) => {
+      let nextChart: MetricType[];
+      let targetHeatmap = heatmapMetric;
+
       if (prev.includes(metric)) {
-        if (prev.length <= 1) return prev; // keep at least 1
-        return prev.filter((m) => m !== metric);
+        if (heatmapMetric === metric && prev.length > 1) {
+          nextChart = prev.filter((m) => m !== metric);
+          targetHeatmap = nextChart[0] || 'sales';
+        } else if (heatmapMetric !== metric) {
+          nextChart = prev;
+          targetHeatmap = metric;
+        } else {
+          nextChart = prev;
+        }
+      } else {
+        nextChart = [...prev, metric];
+        targetHeatmap = metric;
       }
-      return [...prev, metric]; // Allow selecting all metrics
+
+      if (targetHeatmap !== heatmapMetric) {
+        setHeatmapMetric(targetHeatmap);
+        loadMatrixData(targetHeatmap);
+      }
+
+      return nextChart;
     });
   };
 
@@ -168,8 +203,8 @@ export function HourlyModal({ open, onClose, campaignId, campaignName }: HourlyM
     return 'bg-indigo-300 text-indigo-950 font-bold';
   };
 
-  // Primary charted metric peak & low facts
-  const primaryMetric = selectedChartMetrics[0] || 'sales';
+  // Primary charted metric peak & low facts (connected to active selected metric)
+  const primaryMetric = heatmapMetric || selectedChartMetrics[0] || 'sales';
   const peakLowFact = trends?.peaks_and_lows?.[primaryMetric];
 
   const modalContent = (
@@ -275,7 +310,7 @@ export function HourlyModal({ open, onClose, campaignId, campaignName }: HourlyM
           ) : (
             /* Full Connected View */
             <>
-              {/* KPI Summary Ribbon */}
+              {/* KPI Summary Ribbon (Selection Buttons Driving Both Chart & Heatmap) */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2">
                 {[
                   { key: 'impressions', label: 'Impressions', raw: totals.impressions, val: num(totals.impressions) },
@@ -287,20 +322,57 @@ export function HourlyModal({ open, onClose, campaignId, campaignName }: HourlyM
                   { key: 'cpc', label: 'CPC', raw: totals.cpc, val: money(totals.cpc) },
                   { key: 'roas', label: 'ROAS', raw: totals.roas, val: ratio(totals.roas) },
                   { key: 'acos', label: 'ACOS', raw: totals.acos, val: pct(totals.acos) },
-                ].map((kpi) => (
-                  <div
-                    key={kpi.key}
-                    title={kpi.raw === null || kpi.raw === undefined ? 'No data recorded for this metric' : undefined}
-                    className="p-3 border border-slate-200 rounded-lg bg-slate-50/50 flex flex-col justify-between"
-                  >
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                      {kpi.label}
-                    </span>
-                    <span className="text-sm font-bold text-slate-900 font-mono mt-1">
-                      {kpi.val}
-                    </span>
-                  </div>
-                ))}
+                ].map((kpi) => {
+                  const mKey = kpi.key as MetricType;
+                  const cfg = METRIC_CONFIG[mKey];
+                  const isChartSelected = selectedChartMetrics.includes(mKey);
+                  const isHeatmapActive = heatmapMetric === mKey;
+
+                  return (
+                    <button
+                      key={kpi.key}
+                      type="button"
+                      onClick={() => handleKpiCardClick(mKey)}
+                      title={kpi.raw === null || kpi.raw === undefined ? 'No data recorded for this metric' : `Select ${kpi.label} for chart & heatmap`}
+                      className={`p-3 rounded-lg flex flex-col justify-between text-left transition-all cursor-pointer select-none shadow-2xs relative ${
+                        isChartSelected
+                          ? 'bg-indigo-50/90 border-2 border-indigo-600 shadow-xs ring-1 ring-indigo-500/20'
+                          : 'bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50/70'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 w-full">
+                        <span
+                          className={`text-[10px] font-semibold uppercase tracking-wider ${
+                            isChartSelected ? 'text-indigo-900 font-bold' : 'text-slate-500'
+                          }`}
+                        >
+                          {kpi.label}
+                        </span>
+                        {/* Metric Line Color Dot */}
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 transition-all ${
+                            isChartSelected ? 'opacity-100 ring-2 ring-white shadow-2xs scale-110' : 'opacity-35'
+                          }`}
+                          style={{ backgroundColor: cfg?.color || '#6366f1' }}
+                        />
+                      </div>
+                      <div className="flex items-baseline justify-between mt-1.5 gap-1">
+                        <span
+                          className={`text-sm font-bold font-mono truncate ${
+                            isChartSelected ? 'text-indigo-950 font-extrabold' : 'text-slate-900'
+                          }`}
+                        >
+                          {kpi.val}
+                        </span>
+                        {isHeatmapActive && (
+                          <span className="text-[9px] font-mono px-1 py-0.2 bg-indigo-600 text-white rounded font-bold uppercase shrink-0">
+                            Heatmap
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* SECTION 1: Hourly Performance Trends (Line Chart 00-23) */}
@@ -326,33 +398,6 @@ export function HourlyModal({ open, onClose, campaignId, campaignName }: HourlyM
                       </span>
                     </div>
                   )}
-                </div>
-
-                {/* Metric Selection Chips (Max 4) */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-xs font-medium text-slate-500 mr-1">Metrics:</span>
-                  {(Object.keys(METRIC_CONFIG) as MetricType[]).map((key) => {
-                    const cfg = METRIC_CONFIG[key];
-                    const isSelected = selectedChartMetrics.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => handleToggleChartMetric(key)}
-                        className={`px-2.5 py-1 text-xs rounded-full border transition-all cursor-pointer font-medium flex items-center gap-1.5 ${
-                          isSelected
-                            ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                            : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        <span
-                          className="w-2 h-2 rounded-full"
-                          style={{ backgroundColor: cfg.color }}
-                        />
-                        <span>{cfg.label}</span>
-                      </button>
-                    );
-                  })}
                 </div>
 
                 {/* Recharts 24-Hour Line Chart */}
@@ -418,20 +463,16 @@ export function HourlyModal({ open, onClose, campaignId, campaignName }: HourlyM
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {/* Metric Dropdown */}
+                    {/* Active Metric Badge (Connected directly to top KPI selection buttons) */}
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-600">Metric:</span>
-                      <select
-                        value={heatmapMetric}
-                        onChange={(e) => setHeatmapMetric(e.target.value as MetricType)}
-                        className="px-2.5 py-1 text-xs border border-slate-300 rounded-md bg-white text-slate-800 font-medium focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                      >
-                        {(Object.keys(METRIC_CONFIG) as MetricType[]).map((k) => (
-                          <option key={k} value={k}>
-                            {METRIC_CONFIG[k].label}
-                          </option>
-                        ))}
-                      </select>
+                      <span className="text-xs font-semibold text-slate-500">Metric:</span>
+                      <span className="px-2.5 py-1 text-xs rounded-md bg-indigo-50 border border-indigo-200 text-indigo-900 font-bold flex items-center gap-1.5 font-mono shadow-2xs">
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: METRIC_CONFIG[heatmapMetric]?.color || '#059669' }}
+                        />
+                        {METRIC_CONFIG[heatmapMetric]?.label || 'Sales'}
+                      </span>
                     </div>
 
                     {/* Simple Intensity Legend */}

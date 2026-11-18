@@ -5,10 +5,11 @@ import Link from 'next/link';
 import {
   RotateCw,
   BarChart3,
-  Settings,
   Plus,
-  FileText,
   Briefcase,
+  Target,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 import { useCampaignList } from '@/components/campaigns/useCampaignList';
 import { DateRangePicker } from '@/components/campaigns/DateRangePicker';
@@ -16,8 +17,6 @@ import { FilterBar } from '@/components/campaigns/FilterBar';
 import { KpiCards } from '@/components/campaigns/KpiCards';
 import { PerformanceChart } from '@/components/campaigns/PerformanceChart';
 import { CampaignTable } from '@/components/campaigns/CampaignTable';
-import { AlertSettingsDialog } from '@/components/campaigns/AlertSettingsDialog';
-import { DraftsPanel } from '@/components/campaigns/DraftsPanel';
 import { num } from '@/lib/format';
 import type { MetricKey } from '@/components/campaigns/wizard/helpers';
 
@@ -26,12 +25,13 @@ const CHART_COLLAPSE_STORAGE_KEY = 'ads_manager_chart_collapsed';
 function CampaignsPageContent() {
   const {
     account,
+    accounts,
+    accountLoading,
     meta,
     campaigns,
     totals,
     totalCount,
     summaryData,
-    alerts,
     loading,
     syncing,
     error,
@@ -71,7 +71,6 @@ function CampaignsPageContent() {
 
   const [granularity, setGranularity] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [draftsOpen, setDraftsOpen] = useState(false);
   const [chartMetrics, setChartMetrics] = useState<[MetricKey, MetricKey]>(['spend', 'sales']);
 
   const handleSelectMetric = (metric: MetricKey) => {
@@ -98,16 +97,11 @@ function CampaignsPageContent() {
     OUT_OF_BUDGET: campaigns.filter((c) => c.delivery_status === 'OUT_OF_BUDGET').length,
     PAUSED: campaigns.filter((c) => c.state === 'PAUSED').length,
     ARCHIVED: campaigns.filter((c) => c.state === 'ARCHIVED').length,
-    DRAFTS: 0,
   };
 
   const activeStatus = filters.delivery_status || (filters.status && filters.status[0]) || 'ALL';
 
   const handleStatusPillClick = (statusKey: string) => {
-    if (statusKey === 'DRAFTS') {
-      setDraftsOpen(true);
-      return;
-    }
     if (statusKey === 'ALL') {
       updateFilters({ status: [], delivery_status: undefined });
     } else if (statusKey === 'DELIVERING' || statusKey === 'OUT_OF_BUDGET') {
@@ -125,12 +119,84 @@ function CampaignsPageContent() {
     }
   };
 
+  if (!account && !accountLoading && accounts.length === 0) {
+    return (
+      <div className="min-h-screen bg-graph-paper-faint p-6 flex items-center justify-center font-mono">
+        <div className="max-w-md w-full p-8 bg-white border border-slate-300 rounded-lg shadow-sm text-center">
+          <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center mx-auto mb-4">
+            <Target className="w-8 h-8 text-indigo-600" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Connect Your Amazon Ads Account</h2>
+          <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+            Link your Amazon India (Amazon.in) advertising account via Login with Amazon to monitor campaigns, manage bids, and analyze performance with real data.
+          </p>
+          <Link
+            href="/connect-amazon"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-[#FF9900] hover:bg-[#e68a00] text-slate-900 font-bold text-xs transition-colors shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            Connect your Amazon Ads account
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`min-h-screen bg-graph-paper-faint p-6 space-y-5 transition-all ${
         selectedIds.length > 0 ? 'pb-24' : ''
       }`}
     >
+      {/* Re-auth Warning Banner */}
+      {account?.connection_status === 'reauth_required' && (
+        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-md flex items-center justify-between gap-3 text-xs font-mono text-amber-900 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>Amazon Ads access expired. Please reconnect your account to resume syncing data.</span>
+          </div>
+          <Link
+            href="/connect-amazon"
+            className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold shrink-0 transition-colors"
+          >
+            Reconnect
+          </Link>
+        </div>
+      )}
+
+      {/* Sync Failed Banner */}
+      {error && (
+        <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-md flex items-center justify-between gap-3 text-xs font-mono text-rose-900 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <div>
+              <span className="font-semibold">{error.message || 'Sync failed.'}</span>
+              {account?.last_synced_at && (
+                <span className="text-rose-700 ml-2">
+                  (Last successful sync: {new Date(account.last_synced_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })})
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={syncing}
+            className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-xs font-semibold shrink-0 transition-colors flex items-center gap-1.5"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            Retry sync
+          </button>
+        </div>
+      )}
+
+      {/* Syncing Running Banner */}
+      {syncing && (
+        <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-md flex items-center gap-2.5 text-xs font-mono text-indigo-900 shadow-2xs">
+          <RotateCw className="w-4 h-4 animate-spin text-indigo-600 shrink-0" />
+          <span>Syncing your campaigns with Amazon Ads…</span>
+        </div>
+      )}
       {/* Top Header & Portfolio Rail */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -177,28 +243,6 @@ function CampaignsPageContent() {
             <BarChart3 className="w-4 h-4" />
           </button>
 
-          {/* Drafts Trigger */}
-          <button
-            type="button"
-            onClick={() => setDraftsOpen(true)}
-            className="p-2 rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800 hover:text-slate-950"
-            title="View saved drafts"
-          >
-            <FileText className="w-4 h-4" />
-          </button>
-
-          {/* Alerts Dialog */}
-          <AlertSettingsDialog alerts={alerts} onSettingsSaved={refetch} />
-
-          {/* Settings Link */}
-          <Link
-            href="/campaigns/settings"
-            className="p-2 rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800 hover:text-slate-950"
-            title="Campaign settings & guardrails"
-          >
-            <Settings className="w-4 h-4" />
-          </Link>
-
           {/* Primary Create Campaign Button */}
           <Link
             href="/campaigns/new"
@@ -220,7 +264,6 @@ function CampaignsPageContent() {
             { key: 'OUT_OF_BUDGET', label: 'Out of Budget', count: statusCounts.OUT_OF_BUDGET },
             { key: 'PAUSED', label: 'Paused', count: statusCounts.PAUSED },
             { key: 'ARCHIVED', label: 'Archived', count: statusCounts.ARCHIVED },
-            { key: 'DRAFTS', label: 'Drafts', count: statusCounts.DRAFTS },
           ].map((pill) => {
             const isSelected = activeStatus === pill.key;
             const isOobWithCount = pill.key === 'OUT_OF_BUDGET' && (pill.count || 0) > 0;
@@ -325,11 +368,7 @@ function CampaignsPageContent() {
         onDuplicate={handleDuplicate}
         onBulkAction={handleBulkAction}
         onRetry={refetch}
-        draftsCount={statusCounts.DRAFTS || 0}
       />
-
-      {/* Drafts Drawer */}
-      <DraftsPanel open={draftsOpen} onClose={() => setDraftsOpen(false)} />
     </div>
   );
 }

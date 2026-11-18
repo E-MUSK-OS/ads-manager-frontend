@@ -6,7 +6,6 @@ import type {
   CampaignReportResponse,
   CampaignSummaryResponse,
   CampaignAlert,
-  UserCampaignSettings,
   SuggestionsResponse,
   CampaignState,
   ProductSearchResponse,
@@ -14,7 +13,6 @@ import type {
   ForecastResponse,
   BidSuggestionsResponse,
   NegativeSuggestion,
-  CampaignDraftRecord,
   CampaignDraft,
 } from './types/campaign';
 
@@ -120,22 +118,6 @@ export async function getCampaignAlerts(
   return apiClient<CampaignAlert[]>(`/campaigns/alerts?ads_account_id=${accountId}`, { signal });
 }
 
-export async function getCampaignSettings(
-  signal?: AbortSignal
-): Promise<UserCampaignSettings> {
-  return apiClient<UserCampaignSettings>(`/campaigns/settings/campaigns`, { signal });
-}
-
-export async function updateCampaignSettings(
-  data: UserCampaignSettings,
-  signal?: AbortSignal
-): Promise<UserCampaignSettings> {
-  return apiClient<UserCampaignSettings>(`/campaigns/settings/campaigns`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-    signal,
-  });
-}
 
 export async function getCampaignSuggestions(
   accountId: number,
@@ -309,45 +291,6 @@ export async function checkCampaignName(
   );
 }
 
-export async function getCampaignDrafts(
-  accountId: number,
-  signal?: AbortSignal
-): Promise<CampaignDraftRecord[]> {
-  return apiClient<CampaignDraftRecord[]>(`/campaign-drafts?ads_account_id=${accountId}`, { signal });
-}
-
-export async function createCampaignDraft(
-  payload: { ads_account_id: number; name: string; step: number; payload: CampaignDraft },
-  signal?: AbortSignal
-): Promise<CampaignDraftRecord> {
-  return apiClient<CampaignDraftRecord>('/campaign-drafts', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-    signal,
-  });
-}
-
-export async function updateCampaignDraft(
-  id: number,
-  payload: { name?: string; step?: number; payload?: CampaignDraft },
-  signal?: AbortSignal
-): Promise<CampaignDraftRecord> {
-  return apiClient<CampaignDraftRecord>(`/campaign-drafts/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-    signal,
-  });
-}
-
-export async function deleteCampaignDraft(
-  id: number,
-  signal?: AbortSignal
-): Promise<void> {
-  return apiClient<void>(`/campaign-drafts/${id}`, {
-    method: 'DELETE',
-    signal,
-  });
-}
 
 export async function syncAdsAccount(
   accountId: number,
@@ -414,6 +357,7 @@ export async function getSearchTerms(
 ): Promise<import('./types/campaign').SearchTermItem[]> {
   return apiClient<import('./types/campaign').SearchTermItem[]>(`/search-terms?campaign_id=${campaignId}`, { signal });
 }
+
 
 export async function getNegativeKeywords(
   campaignId: number,

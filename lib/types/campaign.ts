@@ -29,8 +29,16 @@ export interface AdsAccount {
   user_id: number;
   marketplace: string;
   account_name?: string;
+  amazon_account_name?: string | null;
+  profile_id?: string | null;
+  region?: string | null;
   external_account_id?: string;
   is_connected?: boolean;
+  is_mock?: boolean;
+  last_synced_at?: string | null;
+  connection_status?: string;
+  is_active?: boolean;
+  created_at?: string;
 }
 
 export interface ProductLite {

@@ -67,7 +67,7 @@ export function useCampaignList() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { account, rules, todayInTz } = useActiveAccount();
+  const { account, accounts, loading: accountLoading, rules, todayInTz } = useActiveAccount();
   const { showToast } = useToast();
 
   const highlightId = searchParams.get('highlight') ? Number(searchParams.get('highlight')) : null;
@@ -472,6 +472,8 @@ export function useCampaignList() {
 
   return {
     account,
+    accounts,
+    accountLoading,
     rules,
     meta,
     campaigns,

@@ -1184,18 +1184,6 @@ function CampaignDetailContent({ params }: PageProps) {
                   <span className="text-[11px] text-slate-400">Timezone: Asia/Kolkata (IST)</span>
                 </div>
               </div>
-
-              <div className="p-4 rounded border border-border-dim bg-slate-50/50 space-y-2">
-                <span className="font-bold text-slate-800 text-xs block">Guardrails</span>
-                <p className="text-slate-600 text-xs leading-relaxed font-sans">
-                  Account threshold: alert triggers when daily utilization exceeds <strong>85%</strong>.
-                </p>
-                <div className="pt-2">
-                  <Link href="/campaigns/settings" className="text-primary hover:underline text-[11px] font-medium">
-                    Configure Account Guardrails →
-                  </Link>
-                </div>
-              </div>
             </div>
           </div>
         )}

@@ -95,7 +95,7 @@ export default function Settings() {
         <div className="p-6 border-b border-border-dim flex justify-between items-center bg-slate-50/50">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Connected Amazon Advertising Accounts</h2>
-            <p className="text-xs text-slate-500">Accounts authorized via Login with Amazon (LWA) or demo data.</p>
+            <p className="text-xs text-slate-500">Accounts authorized via Login with Amazon (LWA).</p>
           </div>
           <Link
             href="/connect-amazon"
@@ -132,7 +132,6 @@ export default function Settings() {
                     <div className="text-xs text-slate-500 flex gap-4 mt-1">
                       <span>Marketplace: <strong className="text-slate-700">{acc.marketplace}</strong></span>
                       {acc.profile_id && <span>Profile ID: {acc.profile_id}</span>}
-                      <span>Type: {acc.is_mock ? 'Mock Account' : 'Live Amazon Account'}</span>
                     </div>
                   </div>
 

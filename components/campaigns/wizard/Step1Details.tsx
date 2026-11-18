@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Sparkles, HelpCircle, Check, Info } from 'lucide-react';
-import { checkCampaignName, getCampaignSuggestions, getCampaignSettings, getCampaignsMeta } from '@/lib/api-client';
+import { checkCampaignName, getCampaignSuggestions, getCampaignsMeta } from '@/lib/api-client';
 import type {
   CampaignDraft,
   MarketplaceRules,
@@ -51,11 +51,6 @@ export function Step1Details({
     if (draft.accountId) {
       getCampaignSuggestions(draft.accountId)
         .then(setSuggestions)
-        .catch(() => {});
-      getCampaignSettings()
-        .then((s) => {
-          if (s.default_target_acos) setDefaultTargetAcos(s.default_target_acos);
-        })
         .catch(() => {});
       getCampaignsMeta(draft.accountId)
         .then((m) => {

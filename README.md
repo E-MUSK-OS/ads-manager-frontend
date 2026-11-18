@@ -57,6 +57,3 @@ pnpm dlx tsx --test components/campaigns/wizard/__tests__/toPayload.test.ts
 - Real-time campaign performance KPIs and charts scoped to the campaign.
 - Five dedicated management tabs: Ad Groups (with inline default bid edit), Keywords (state toggle and new keyword modal), Search Terms (with "Add as keyword" and "Add as negative" modal actions), Negatives (add and remove negative keywords), and Settings (bidding strategy, placements, end date, target ACOS).
 
-### Campaign Settings (`/campaigns/settings`)
-- Global target ACOS and bid-limit thresholds.
-- Dynamic Health Score Rules manager: toggle rules, drag/reorder priority, add custom rules with condition builder (`acos`, `roas`, `spend`, `orders`, etc.), and reset to defaults.

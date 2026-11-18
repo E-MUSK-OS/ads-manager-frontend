@@ -10,7 +10,6 @@ import {
   Download,
   RotateCw,
   AlertCircle,
-  FileText,
   Pencil,
   Check,
   X,
@@ -23,7 +22,6 @@ import { calculateMaxEffectiveBid, type BiddingStrategy } from './wizard/helpers
 import { ColumnChooser, DEFAULT_VISIBLE_COLUMNS, ColumnKey } from './ColumnChooser';
 import { RowMenu } from './RowMenu';
 import { BulkBar } from './BulkBar';
-import { DraftsPanel } from './DraftsPanel';
 import { getCampaignAdGroups } from '@/lib/api-client';
 import { Switch } from '@/components/ui/Switch';
 import { Popover } from '@/components/ui/Popover';
@@ -64,7 +62,6 @@ interface CampaignTableProps {
   onDuplicate: (id: number) => void;
   onBulkAction: (ids: number[], action: string, value?: any, extra?: any) => void;
   onRetry: () => void;
-  draftsCount?: number;
 }
 
 export function CampaignTable({
@@ -91,7 +88,6 @@ export function CampaignTable({
   onDuplicate,
   onBulkAction,
   onRetry,
-  draftsCount = 0,
 }: CampaignTableProps) {
   const router = useRouter();
 
@@ -136,9 +132,6 @@ export function CampaignTable({
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
   const [adGroupsData, setAdGroupsData] = useState<Record<number, AdGroupItem[]>>({});
   const [adGroupsLoading, setAdGroupsLoading] = useState<Record<number, boolean>>({});
-
-  // Drafts panel open
-  const [draftsOpen, setDraftsOpen] = useState(false);
 
   // Popover inline edit states
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
@@ -365,14 +358,6 @@ export function CampaignTable({
             <span className="font-bold text-sm tracking-wide uppercase text-slate-800">
               Campaigns
             </span>
-            <button
-              type="button"
-              onClick={() => setDraftsOpen(true)}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-primary hover:bg-indigo-50 transition-colors font-medium"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Drafts ({draftsCount})</span>
-            </button>
           </div>
 
           {/* Search box */}
@@ -618,9 +603,9 @@ export function CampaignTable({
               <tr>
                 <td colSpan={25} className="py-16 text-center text-slate-400">
                   <div className="max-w-xs mx-auto">
-                    <p className="font-semibold text-slate-700">No campaigns found</p>
+                    <p className="font-semibold text-slate-700">No campaigns found in your Amazon Ads account</p>
                     <p className="text-[11px] mt-1 text-slate-500">
-                      Try adjusting filters or search terms, or create a new campaign.
+                      Try adjusting filters or date range, or create a new campaign on Amazon Ads.
                     </p>
                     <Link
                       href="/campaigns/new"
@@ -1446,9 +1431,6 @@ export function CampaignTable({
         onAction={onBulkAction}
         onClearSelection={() => setSelectedIds([])}
       />
-
-      {/* Drafts drawer */}
-      <DraftsPanel open={draftsOpen} onClose={() => setDraftsOpen(false)} />
     </div>
   );
 }

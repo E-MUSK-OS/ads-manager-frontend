@@ -108,7 +108,6 @@ export function toPayload(d: CampaignDraft, rules?: MarketplaceRules): CampaignC
     placement_rest_of_search_pct: d.details.placements.rest ?? 0,
     placement_product_pages_pct: d.details.placements.productPage ?? 0,
     portfolio_name: d.details.portfolio || undefined,
-    draft_id: (d as any).draft_id,
     product_ids: d.products.selected.map((p) => p.id),
     ad_groups: [
       {

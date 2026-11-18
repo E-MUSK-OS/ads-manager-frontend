@@ -47,7 +47,7 @@ function CallbackContent() {
         setStatus('success');
         // Brief pause so user sees success confirmation before dashboard navigation
         setTimeout(() => {
-          router.push('/dashboard');
+          router.push('/campaigns');
         }, 1200);
       } catch (err: any) {
         setStatus('error');

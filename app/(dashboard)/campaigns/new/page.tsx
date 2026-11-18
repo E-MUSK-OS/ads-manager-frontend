@@ -1,24 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   X,
   ArrowLeft,
   ArrowRight,
-  Save,
   RotateCw,
-  Check,
   AlertCircle,
 } from 'lucide-react';
 import { useActiveAccount } from '@/lib/useActiveAccount';
 import {
-  createCampaign,
   launchCampaignWizard,
-  createCampaignDraft,
-  updateCampaignDraft,
-  deleteCampaignDraft,
-  getCampaignDrafts,
   ApiError,
 } from '@/lib/api-client';
 import type {
@@ -38,17 +31,13 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 function CreateCampaignContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const draftIdParam = searchParams.get('draft') ? Number(searchParams.get('draft')) : null;
 
   const { account, rules, todayInTz } = useActiveAccount();
   const { showToast } = useToast();
   const todayStr = todayInTz();
 
   const [draft, setDraft] = useState<CampaignDraft>(() => defaultDraft(account, rules));
-  const [serverDraftId, setServerDraftId] = useState<number | null>(draftIdParam);
   const [isDirty, setIsDirty] = useState(false);
-  const [autosaveStatus, setAutosaveStatus] = useState<'saved' | 'saving'>('saved');
 
   // Step validation state
   const [stepErrors, setStepErrors] = useState<Record<number, boolean>>({});
@@ -59,90 +48,15 @@ function CreateCampaignContent() {
   // Close confirmation dialog
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
-  const localKey = account ? `campaign.draft.${account.id}` : null;
-
-  // Initialize draft when account/rules load or when restoring from draft
+  // Initialize draft when account/rules load
   useEffect(() => {
     if (!account) return;
-
-    if (draftIdParam) {
-      getCampaignDrafts(account.id)
-        .then((drafts) => {
-          const matched = drafts.find((d) => d.id === draftIdParam);
-          if (matched && matched.payload) {
-            setDraft(matched.payload);
-            setServerDraftId(matched.id);
-            showToast({ title: 'Draft resumed', message: `Resumed "${matched.name}" at step ${matched.step}`, type: 'info' });
-          }
-        })
-        .catch(() => {});
-    } else if (localKey) {
-      try {
-        const saved = localStorage.getItem(localKey);
-        if (saved) {
-          const parsed = JSON.parse(saved) as CampaignDraft;
-          if (parsed && parsed.version === 1) {
-            setDraft(parsed);
-          }
-        } else {
-          setDraft(defaultDraft(account, rules));
-        }
-      } catch {
-        setDraft(defaultDraft(account, rules));
-      }
-    }
-  }, [account?.id, draftIdParam]);
-
-  // Debounced autosave to localStorage & server draft
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const persistDraft = useCallback(
-    async (currentDraft: CampaignDraft) => {
-      if (!account) return;
-      setAutosaveStatus('saving');
-
-      // Local storage save
-      if (localKey) {
-        try {
-          localStorage.setItem(localKey, JSON.stringify(currentDraft));
-        } catch {}
-      }
-
-      // Server draft save
-      try {
-        if (serverDraftId) {
-          await updateCampaignDraft(serverDraftId, {
-            name: currentDraft.details.name,
-            step: currentDraft.step,
-            payload: currentDraft,
-          });
-        } else {
-          const res = await createCampaignDraft({
-            ads_account_id: account.id,
-            name: currentDraft.details.name,
-            step: currentDraft.step,
-            payload: currentDraft,
-          });
-          setServerDraftId(res.id);
-        }
-        setAutosaveStatus('saved');
-      } catch {
-        setAutosaveStatus('saved');
-      }
-    },
-    [account, localKey, serverDraftId]
-  );
+    setDraft(defaultDraft(account, rules));
+  }, [account?.id]);
 
   const updateDraft = (updater: (prev: CampaignDraft) => CampaignDraft) => {
     setIsDirty(true);
-    setDraft((prev) => {
-      const next = updater(prev);
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(() => {
-        persistDraft(next);
-      }, 1000);
-      return next;
-    });
+    setDraft((prev) => updater(prev));
   };
 
   // Warn on page unload when dirty
@@ -209,22 +123,7 @@ function CreateCampaignContent() {
     }
   };
 
-  const handleManualSaveDraft = async () => {
-    await persistDraft(draft);
-    showToast({ title: 'Draft saved', message: 'Campaign draft has been saved to your account.', type: 'success' });
-  };
-
-  const handleDiscardAndExit = async () => {
-    if (serverDraftId) {
-      try {
-        await deleteCampaignDraft(serverDraftId);
-      } catch {}
-    }
-    if (localKey) {
-      try {
-        localStorage.removeItem(localKey);
-      } catch {}
-    }
+  const handleDiscardAndExit = () => {
     router.push('/campaigns');
   };
 
@@ -235,9 +134,6 @@ function CreateCampaignContent() {
 
     const payload = toPayload(draft, rules);
     payload.state = state;
-    if (serverDraftId) {
-      (payload as any).draft_id = serverDraftId;
-    }
 
     try {
       const res = await launchCampaignWizard(payload);
@@ -246,18 +142,6 @@ function CreateCampaignContent() {
         message: `Campaign "${res.name}" launched successfully as ${state.toLowerCase()}.`,
         type: 'success',
       });
-
-      // Cleanup local & server draft
-      if (serverDraftId) {
-        try {
-          await deleteCampaignDraft(serverDraftId);
-        } catch {}
-      }
-      if (localKey) {
-        try {
-          localStorage.removeItem(localKey);
-        } catch {}
-      }
 
       router.push(`/campaigns?highlight=${res.id}`);
     } catch (err: any) {
@@ -321,28 +205,6 @@ function CreateCampaignContent() {
 
         {/* Top bar right actions */}
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-slate-400">
-            {autosaveStatus === 'saving' ? (
-              <span className="inline-flex items-center gap-1 text-slate-500">
-                <RotateCw className="w-3 h-3 animate-spin text-primary" />
-                <span>Autosaving...</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-slate-400">
-                <Check className="w-3 h-3 text-emerald-500" />
-                <span>Saved just now</span>
-              </span>
-            )}
-          </span>
-
-          <button
-            type="button"
-            onClick={handleManualSaveDraft}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-border-dim bg-white hover:bg-slate-50 text-slate-700 font-medium shadow-2xs"
-          >
-            <Save className="w-3.5 h-3.5 text-slate-500" />
-            <span>Save as draft</span>
-          </button>
         </div>
       </header>
 
@@ -429,7 +291,6 @@ function CreateCampaignContent() {
               countryName={countryName}
               onGoToStep={goToStep}
               onLaunch={handleLaunch}
-              onSaveDraft={handleManualSaveDraft}
               submitting={submitting}
             />
           )}

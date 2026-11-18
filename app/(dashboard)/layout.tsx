@@ -4,16 +4,14 @@ import { clearTokens } from '@/lib/auth';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  LayoutDashboard, Target, Hash, Search, 
-  Bot, Settings, FileText, CreditCard, LogOut, Zap, Package,
-  ChevronDown, Sparkles
+  Target, Settings, LogOut, ChevronDown, Sparkles
 } from 'lucide-react';
 import { useActiveAccount } from '@/lib/useActiveAccount';
 import { getRecommendationsSummary } from '@/lib/recommendations-api';
 import React, { useState, useEffect } from 'react';
 
 function AccountSwitcher() {
-  const { accounts, account, rules, setActiveAccountId, loading } = useActiveAccount();
+  const { accounts, account, setActiveAccountId, loading } = useActiveAccount();
 
   if (loading) {
     return <span className="text-xs font-mono text-slate-400">Loading account...</span>;
@@ -27,15 +25,37 @@ function AccountSwitcher() {
     );
   }
 
-  const getMarketplaceLabel = (_mp?: string) => 'India';
+  // Deduplicate accounts: keep unique by profile_id if present, else by id
+  const seenProfiles = new Set<string>();
+  const uniqueAccounts: typeof accounts = [];
+  for (const acc of accounts) {
+    const key = acc.profile_id ? `prof_${acc.profile_id}` : `id_${acc.id}`;
+    if (!seenProfiles.has(key)) {
+      seenProfiles.add(key);
+      uniqueAccounts.push(acc);
+    }
+  }
 
-  if (accounts.length === 1) {
-    const acc = accounts[0];
+  // Count names to detect collision for appending profile_id suffix
+  const nameCounts: Record<string, number> = {};
+  uniqueAccounts.forEach((a) => {
+    const rawName = a.amazon_account_name || a.account_name || 'Amazon Account';
+    nameCounts[rawName] = (nameCounts[rawName] || 0) + 1;
+  });
+
+  const formatAccountLabel = (a: (typeof accounts)[0]) => {
+    const name = a.amazon_account_name || a.account_name || 'Amazon Account';
+    const hasCollision = (nameCounts[name] || 0) > 1 && Boolean(a.profile_id);
+    const suffix = hasCollision && a.profile_id ? ` (${a.profile_id.slice(-4)})` : '';
+    const mp = (a.marketplace || 'IN').toUpperCase();
+    return `${name}${suffix} · ${mp} · INR`;
+  };
+
+  if (uniqueAccounts.length === 1) {
+    const acc = uniqueAccounts[0];
     return (
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-border-dim font-mono text-xs text-text-main font-medium">
-        <span>{getMarketplaceLabel(acc.marketplace)}</span>
-        <span className="text-slate-400">·</span>
-        <span className="text-slate-600">INR</span>
+        <span>{formatAccountLabel(acc)}</span>
       </div>
     );
   }
@@ -43,13 +63,13 @@ function AccountSwitcher() {
   return (
     <div className="relative inline-flex items-center">
       <select
-        value={account?.id ?? accounts[0]?.id}
+        value={account?.id ?? uniqueAccounts[0]?.id}
         onChange={(e) => setActiveAccountId(Number(e.target.value))}
         className="text-xs font-mono font-medium pl-2.5 pr-6 py-1 bg-slate-100 hover:bg-slate-200 border border-border-dim rounded-md text-text-main outline-none focus:ring-1 focus:ring-primary cursor-pointer appearance-none transition-colors"
       >
-        {accounts.map((a) => (
+        {uniqueAccounts.map((a) => (
           <option key={a.id} value={a.id}>
-            {getMarketplaceLabel(a.marketplace)} · INR
+            {formatAccountLabel(a)}
           </option>
         ))}
       </select>
@@ -99,38 +119,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.href = '/login';
   };
 
-  const navGroups = [
-    {
-      title: 'Overview',
-      links: [
-        { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-        { href: '/product-analytics', label: 'Product Analytics', icon: Package }
-      ]
-    },
-    {
-      title: 'Advertising',
-      links: [
-        { href: '/campaigns', label: 'Campaigns', icon: Target },
-        { href: '/keywords', label: 'Keywords', icon: Hash },
-        { href: '/search-terms', label: 'Search Terms', icon: Search }
-      ]
-    },
-    {
-      title: 'Intelligence',
-      links: [
-        { href: '/recommendations', label: 'Recommendations', icon: Sparkles, badge: openCount },
-        { href: '/ai-insights', label: 'AI Insights', icon: Bot },
-        { href: '/automation-rules', label: 'Automation', icon: Zap }
-      ]
-    },
-    {
-      title: 'Configuration',
-      links: [
-        { href: '/reports', label: 'Reports', icon: FileText },
-        { href: '/billing', label: 'Billing', icon: CreditCard },
-        { href: '/settings', label: 'Settings', icon: Settings }
-      ]
-    }
+  const navLinks = [
+    { href: '/campaigns', label: 'Campaigns', icon: Target },
+    { href: '/recommendations', label: 'Recommendations', icon: Sparkles, badge: openCount },
   ];
 
   return (
@@ -141,37 +132,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="font-mono font-bold tracking-tight text-lg text-primary">AdsManager</div>
         </div>
         
-        <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-6">
-          {navGroups.map((group, idx) => (
-            <div key={idx} className="flex flex-col gap-1">
-              <div className="px-3 text-xs font-mono text-slate-400 uppercase tracking-wider mb-1">
-                {group.title}
-              </div>
-              {group.links.map(link => {
-                const isActive = pathname === link.href || pathname.startsWith(link.href + '/');
-                const Icon = link.icon;
-                return (
-                  <Link 
-                    key={link.href} 
-                    href={link.href}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive 
-                        ? 'bg-slate-100 text-primary font-semibold' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-slate-400'}`} />
-                    <span>{link.label}</span>
-                    {Boolean(link.badge && link.badge > 0) && (
-                      <span className="ml-auto px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded-full bg-indigo-50 text-primary border border-indigo-200">
-                        {link.badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+        <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1">
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href || pathname.startsWith(link.href + '/');
+            const Icon = link.icon;
+            return (
+              <Link 
+                key={link.href} 
+                href={link.href}
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive 
+                    ? 'bg-slate-100 text-primary font-semibold' 
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-slate-400'}`} />
+                <span>{link.label}</span>
+                {Boolean(link.badge && link.badge > 0) && (
+                  <span className="ml-auto px-1.5 py-0.5 text-[10px] font-mono font-semibold rounded-full bg-indigo-50 text-primary border border-indigo-200">
+                    {link.badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
       </aside>
 
@@ -186,18 +170,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           
           <div className="flex items-center gap-4">
             <Link 
-              href="/connect-amazon" 
-              className="text-xs font-medium px-3 py-1.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors"
+              href="/settings" 
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              title="Account settings & Amazon connection"
             >
-              Integrations
+              <Settings className="w-3.5 h-3.5" />
+              <span>Settings</span>
             </Link>
             <div className="w-px h-4 bg-slate-200"></div>
             <button 
               onClick={handleLogout} 
-              className="flex items-center gap-2 text-sm text-slate-500 hover:text-rose-600 transition-colors"
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors"
             >
-              <LogOut className="w-4 h-4" />
-              Sign out
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign out</span>
             </button>
           </div>
         </header>

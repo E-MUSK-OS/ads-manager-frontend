@@ -26,7 +26,6 @@ interface Step5ReviewProps {
   countryName: string;
   onGoToStep: (step: 1 | 2 | 3 | 4 | 5) => void;
   onLaunch: (state: 'ENABLED' | 'PAUSED') => void;
-  onSaveDraft: () => void;
   submitting: boolean;
 }
 
@@ -36,7 +35,6 @@ export function Step5Review({
   countryName,
   onGoToStep,
   onLaunch,
-  onSaveDraft,
   submitting,
 }: Step5ReviewProps) {
   const [validating, setValidating] = useState(true);
@@ -340,15 +338,7 @@ export function Step5Review({
       </div>
 
       {/* Action Buttons */}
-      <div className="pt-4 border-t border-border-dim flex flex-wrap items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={onSaveDraft}
-          className="px-3.5 py-2 border border-border-dim rounded hover:bg-slate-50 text-slate-700 font-medium"
-        >
-          Save as draft
-        </button>
-
+      <div className="pt-4 border-t border-border-dim flex flex-wrap items-center justify-end gap-3">
         <div className="flex items-center gap-2">
           <button
             type="button"

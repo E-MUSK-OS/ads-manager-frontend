@@ -25,7 +25,7 @@ export default function Login() {
         // Check if user has ads accounts to route properly
         const accounts = await apiClient('/ads-accounts');
         if (accounts && accounts.length > 0) {
-          window.location.href = '/dashboard';
+          window.location.href = '/campaigns';
         } else {
           window.location.href = '/connect-amazon';
         }
@@ -57,7 +57,7 @@ export default function Login() {
       });
       
       setTokens(data.access_token, data.refresh_token);
-      window.location.href = '/dashboard';
+      window.location.href = '/campaigns';
     } catch (err: any) {
       setError(err.message || 'An error occurred during login. Please try again.');
     } finally {

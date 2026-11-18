@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
-import { Plus, Target, CheckCircle2, AlertCircle, Shield, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Target, CheckCircle2, AlertCircle, Trash2, RefreshCw } from 'lucide-react';
 
 interface AdsAccountItem {
   id: number;
   marketplace: string;
-  is_mock: boolean;
+  is_mock?: boolean;
   profile_id?: string;
   amazon_account_name?: string;
   connection_status?: string;
@@ -15,7 +15,6 @@ interface AdsAccountItem {
 
 export default function ConnectAmazon() {
   const [loading, setLoading] = useState(false);
-  const [providerMode, setProviderMode] = useState<'mock' | 'amazon'>('mock');
   const [accounts, setAccounts] = useState<AdsAccountItem[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState('');
@@ -23,15 +22,10 @@ export default function ConnectAmazon() {
 
   const loadData = async () => {
     try {
-      // Determine provider mode (mock or amazon)
-      const modeRes = await apiClient<{ provider: 'mock' | 'amazon' }>('/ads-accounts/provider-mode').catch(() => ({ provider: 'mock' as const }));
-      setProviderMode(modeRes.provider || 'mock');
-
-      // Fetch existing connected accounts
       const existingAccounts = await apiClient<AdsAccountItem[]>('/ads-accounts').catch(() => []);
       setAccounts(existingAccounts || []);
     } catch (err: unknown) {
-      console.error('Failed to load accounts or provider mode', err);
+      console.error('Failed to load accounts', err);
     } finally {
       setFetching(false);
     }
@@ -45,24 +39,14 @@ export default function ConnectAmazon() {
     setLoading(true);
     setError('');
     try {
-      if (providerMode === 'amazon') {
-        // Amazon live mode: request authorized URL and redirect to Amazon LWA
-        const res = await apiClient<{ url: string }>('/ads-accounts/amazon/authorize-url');
-        if (res?.url) {
-          window.location.href = res.url;
-        } else {
-          throw new Error('Received invalid authorization URL from backend');
-        }
+      const res = await apiClient<{ url: string }>('/ads-accounts/amazon/authorize-url');
+      if (res?.url) {
+        window.location.href = res.url;
       } else {
-        // Mock demo mode: populate mock advertiser dataset
-        await apiClient('/ads-accounts/connect', {
-          method: 'POST',
-          body: JSON.stringify({ marketplace: 'IN' }),
-        });
-        window.location.href = '/dashboard';
+        throw new Error('Received invalid authorization URL from backend');
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to initialize integration. Please try again.');
+      setError(err.message || 'Failed to initialize Amazon authorization. Please verify credentials.');
       setLoading(false);
     }
   };
@@ -84,26 +68,6 @@ export default function ConnectAmazon() {
 
   return (
     <div className="max-w-3xl mx-auto py-10 px-4">
-      {/* Provider Mode Banner */}
-      <div className="mb-6 flex justify-between items-center bg-surface border border-border-dim rounded-lg p-4">
-        <div className="flex items-center gap-2">
-          <Shield className="w-5 h-5 text-primary" />
-          <span className="text-sm font-medium">Provider Integration Mode:</span>
-          {providerMode === 'amazon' ? (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
-              Amazon Ads Live (LWA)
-            </span>
-          ) : (
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Demo mode: sample data
-            </span>
-          )}
-        </div>
-        <div className="text-xs text-slate-500">
-          {providerMode === 'amazon' ? 'Real LWA OAuth 2.0 Enabled' : 'Synthetic Data Seeder'}
-        </div>
-      </div>
-
       {/* Existing Connected Accounts */}
       {accounts.length > 0 && (
         <div className="mb-8 bg-surface border border-border-dim rounded-lg p-6 shadow-sm">
@@ -121,7 +85,6 @@ export default function ConnectAmazon() {
                   <div className="text-xs text-slate-500 flex gap-3 mt-1">
                     <span>Marketplace: <strong className="text-slate-700">{acc.marketplace}</strong></span>
                     {acc.profile_id && <span>Profile ID: {acc.profile_id}</span>}
-                    <span>Type: {acc.is_mock ? 'Mock Account' : 'Live Amazon Account'}</span>
                   </div>
                 </div>
 
@@ -165,12 +128,10 @@ export default function ConnectAmazon() {
             <Target className="w-8 h-8 text-primary" />
           </div>
           <h2 className="text-2xl font-bold tracking-tight mb-3">
-            {providerMode === 'amazon' ? 'Connect Amazon Advertising Account' : 'Connect Demo Advertising Account'}
+            Connect Amazon Advertising Account
           </h2>
           <p className="text-sm text-slate-500 leading-relaxed max-w-lg mx-auto">
-            {providerMode === 'amazon'
-              ? 'Authorize AdsManager via Login with Amazon (LWA) to manage your Amazon Advertising campaigns, budgets, and bid optimizations.'
-              : 'Explore AdsManager features with simulated Amazon advertising data in demo mode.'}
+            Authorize AdsManager via Login with Amazon (LWA) to manage your Amazon Advertising campaigns, budgets, and bid optimizations.
           </p>
         </div>
 
@@ -189,19 +150,19 @@ export default function ConnectAmazon() {
           <div className="flex items-start gap-3 text-sm text-slate-700">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <span>
-              <strong>Performance Analytics:</strong> Retrieve campaign performance metrics, impressions, clicks, spend, and sales data.
+              <strong>Performance Analytics:</strong> Retrieve campaign performance metrics, impressions, clicks, spend, and sales data directly from Amazon Ads API.
             </span>
           </div>
           <div className="flex items-start gap-3 text-sm text-slate-700">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <span>
-              <strong>Campaign Management:</strong> Create and modify campaigns, ad groups, budgets, bids, and keywords on your behalf.
+              <strong>Campaign Management:</strong> Create and modify campaigns, ad groups, budgets, bids, and keywords on Amazon on your behalf.
             </span>
           </div>
           <div className="flex items-start gap-3 text-sm text-slate-700">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
             <span>
-              <strong>Automated Bid Optimization:</strong> Apply AI recommendations and automated rules to adjust bids and negative keywords.
+              <strong>Automated Bid Optimization:</strong> Apply verified recommendations to adjust bids and negative keywords.
             </span>
           </div>
           <div className="flex items-start gap-3 text-sm text-slate-700">
@@ -220,12 +181,12 @@ export default function ConnectAmazon() {
           {loading ? (
             <>
               <div className="w-5 h-5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-              {providerMode === 'amazon' ? 'Redirecting to Login with Amazon...' : 'Generating sample dataset...'}
+              Redirecting to Login with Amazon...
             </>
           ) : (
             <>
               <Plus className="w-5 h-5" />
-              {providerMode === 'amazon' ? 'Authorize with Login with Amazon' : 'Connect Sample Account (Demo)'}
+              Authorize with Login with Amazon
             </>
           )}
         </button>

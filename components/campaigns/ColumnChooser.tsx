@@ -6,7 +6,6 @@ import { Popover } from '@/components/ui/Popover';
 
 export type ColumnKey =
   | 'status'
-  | 'health'
   | 'start_date'
   | 'end_date'
   | 'daily_budget'
@@ -31,7 +30,6 @@ export interface ColumnDef {
 
 export const ALL_COLUMNS: ColumnDef[] = [
   { key: 'status', label: 'Status' },
-  { key: 'health', label: 'Health' },
   { key: 'start_date', label: 'Start Date' },
   { key: 'end_date', label: 'End Date' },
   { key: 'daily_budget', label: 'Budget' },
@@ -52,7 +50,6 @@ export const ALL_COLUMNS: ColumnDef[] = [
 
 export const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
   'status',
-  'health',
   'start_date',
   'daily_budget',
   'impressions',

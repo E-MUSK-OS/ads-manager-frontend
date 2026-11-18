@@ -291,12 +291,73 @@ export async function checkCampaignName(
   );
 }
 
+export interface SavedFilterItem {
+  id: number;
+  name: string;
+  filters: Record<string, any>;
+  created_at: string;
+}
+
+export async function getSavedFilters(signal?: AbortSignal): Promise<SavedFilterItem[]> {
+  return apiClient<SavedFilterItem[]>('/campaigns/saved-filters', { signal });
+}
+
+export async function createSavedFilter(
+  data: { name: string; filters: Record<string, any> },
+  signal?: AbortSignal
+): Promise<SavedFilterItem> {
+  return apiClient<SavedFilterItem>('/campaigns/saved-filters', {
+    method: 'POST',
+    body: JSON.stringify(data),
+    signal,
+  });
+}
+
+export async function deleteSavedFilter(
+  filterId: number,
+  signal?: AbortSignal
+): Promise<void> {
+  return apiClient<void>(`/campaigns/saved-filters/${filterId}`, {
+    method: 'DELETE',
+    signal,
+  });
+}
+
+
+export interface SyncStatusResponse {
+  account_id: number;
+  sync_status: string;
+  connection_status: string;
+  last_synced_at: string | null;
+  last_run: {
+    id: number;
+    status: string;
+    sync_type: string;
+    started_at: string;
+    completed_at?: string | null;
+    campaigns_count: number;
+    metrics_rows_count: number;
+    error_message?: string | null;
+  } | null;
+}
+
+export async function getSyncStatus(
+  accountId: number,
+  signal?: AbortSignal
+): Promise<SyncStatusResponse> {
+  return apiClient<SyncStatusResponse>(`/ads-accounts/${accountId}/sync-status`, { signal });
+}
 
 export async function syncAdsAccount(
   accountId: number,
+  options?: { force?: boolean; days_back?: number },
   signal?: AbortSignal
 ): Promise<{ ok: boolean; message?: string }> {
-  return apiClient(`/ads-accounts/${accountId}/sync`, { method: 'POST', signal });
+  const query = buildQuery({
+    force: options?.force,
+    days_back: options?.days_back,
+  });
+  return apiClient(`/ads-accounts/${accountId}/sync${query}`, { method: 'POST', signal });
 }
 
 export async function getCampaignAdGroups(
@@ -541,3 +602,96 @@ export async function getCampaignsMeta(
 }> {
   return apiClient(`/campaigns/meta?ads_account_id=${adsAccountId}`, { signal });
 }
+
+export async function getCampaignBidThreshold(
+  campaignId: number,
+  signal?: AbortSignal
+): Promise<import('./types/campaign').BidThreshold | null> {
+  return apiClient<import('./types/campaign').BidThreshold | null>(`/campaigns/${campaignId}/bid-threshold`, { signal });
+}
+
+export async function putCampaignBidThreshold(
+  campaignId: number,
+  data: { min_bid?: number | null; max_bid?: number | null; target_acos?: number | null },
+  signal?: AbortSignal
+): Promise<import('./types/campaign').BidThreshold> {
+  return apiClient<import('./types/campaign').BidThreshold>(`/campaigns/${campaignId}/bid-threshold`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+    signal,
+  });
+}
+
+export async function deleteCampaignBidThreshold(
+  campaignId: number,
+  signal?: AbortSignal
+): Promise<void> {
+  return apiClient<void>(`/campaigns/${campaignId}/bid-threshold`, {
+    method: 'DELETE',
+    signal,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Hourly Tracking Endpoints (Phase 7 / D7)
+// ---------------------------------------------------------------------------
+
+export async function getHourlyStatus(
+  adsAccountId: number,
+  signal?: AbortSignal
+): Promise<import('./types/campaign').HourlyStatusResponse> {
+  return apiClient<import('./types/campaign').HourlyStatusResponse>(
+    `/campaigns/hourly/status?ads_account_id=${adsAccountId}`,
+    { signal }
+  );
+}
+
+export async function getHourlySummary(
+  params: { ads_account_id: number; start: string; end: string; campaign_id?: number },
+  signal?: AbortSignal
+): Promise<import('./types/campaign').HourlySummaryResponse> {
+  const q = new URLSearchParams({
+    ads_account_id: String(params.ads_account_id),
+    start: params.start,
+    end: params.end,
+  });
+  if (params.campaign_id) q.set('campaign_id', String(params.campaign_id));
+  return apiClient<import('./types/campaign').HourlySummaryResponse>(
+    `/campaigns/hourly/summary?${q.toString()}`,
+    { signal }
+  );
+}
+
+export async function getHourlyTrends(
+  params: { ads_account_id: number; start: string; end: string; campaign_id?: number },
+  signal?: AbortSignal
+): Promise<import('./types/campaign').HourlyTrendsResponse> {
+  const q = new URLSearchParams({
+    ads_account_id: String(params.ads_account_id),
+    start: params.start,
+    end: params.end,
+  });
+  if (params.campaign_id) q.set('campaign_id', String(params.campaign_id));
+  return apiClient<import('./types/campaign').HourlyTrendsResponse>(
+    `/campaigns/hourly/trends?${q.toString()}`,
+    { signal }
+  );
+}
+
+export async function getHourlyMatrix(
+  params: { ads_account_id: number; start: string; end: string; metric?: string; campaign_id?: number },
+  signal?: AbortSignal
+): Promise<import('./types/campaign').HourlyMatrixResponse> {
+  const q = new URLSearchParams({
+    ads_account_id: String(params.ads_account_id),
+    start: params.start,
+    end: params.end,
+    metric: params.metric || 'sales',
+  });
+  if (params.campaign_id) q.set('campaign_id', String(params.campaign_id));
+  return apiClient<import('./types/campaign').HourlyMatrixResponse>(
+    `/campaigns/hourly/matrix?${q.toString()}`,
+    { signal }
+  );
+}
+

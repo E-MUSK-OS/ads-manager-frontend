@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ChevronDown,
   Search,
-  Download,
   RotateCw,
   AlertCircle,
   Pencil,
@@ -16,12 +15,18 @@ import {
   SlidersHorizontal,
   Calendar,
   IndianRupee,
+  Clock,
+  GitCompare,
+  Plus,
 } from 'lucide-react';
 import { money, pct, ratio, num } from '@/lib/format';
 import { calculateMaxEffectiveBid, type BiddingStrategy } from './wizard/helpers';
 import { ColumnChooser, DEFAULT_VISIBLE_COLUMNS, ColumnKey } from './ColumnChooser';
 import { RowMenu } from './RowMenu';
 import { BulkBar } from './BulkBar';
+import { HourlyModal } from './HourlyModal';
+import { ComparePreviousModal } from './ComparePreviousModal';
+import { BidThresholdModal } from './BidThresholdModal';
 import { getCampaignAdGroups } from '@/lib/api-client';
 import { Switch } from '@/components/ui/Switch';
 import { Popover } from '@/components/ui/Popover';
@@ -50,6 +55,7 @@ interface CampaignTableProps {
   sortField: string;
   sortDir: 'asc' | 'desc';
   filters: FilterState;
+  dateRange?: { start: string; end: string };
   selectedIds?: number[];
   onSelectedIdsChange?: (ids: number[]) => void;
   onPageChange: (page: number) => void;
@@ -62,6 +68,7 @@ interface CampaignTableProps {
   onDuplicate: (id: number) => void;
   onBulkAction: (ids: number[], action: string, value?: any, extra?: any) => void;
   onRetry: () => void;
+  onBidThreshold?: (campaign: CampaignItem) => void;
 }
 
 export function CampaignTable({
@@ -76,6 +83,7 @@ export function CampaignTable({
   sortField,
   sortDir,
   filters,
+  dateRange,
   selectedIds: controlledSelectedIds,
   onSelectedIdsChange,
   onPageChange,
@@ -88,6 +96,7 @@ export function CampaignTable({
   onDuplicate,
   onBulkAction,
   onRetry,
+  onBidThreshold,
 }: CampaignTableProps) {
   const router = useRouter();
 
@@ -127,6 +136,14 @@ export function CampaignTable({
       setInternalSelectedIds(ids);
     }
   };
+
+  // Modals
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [hourlyModalOpen, setHourlyModalOpen] = useState(false);
+  const [hourlyModalCampaignId, setHourlyModalCampaignId] = useState<number | undefined>();
+  const [hourlyModalCampaignName, setHourlyModalCampaignName] = useState<string | undefined>();
+  const [bidThresholdModalOpen, setBidThresholdModalOpen] = useState(false);
+  const [bidThresholdCampaign, setBidThresholdCampaign] = useState<CampaignItem | null>(null);
 
   // Expanded rows (for nested ad-groups)
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
@@ -255,94 +272,42 @@ export function CampaignTable({
     }
   };
 
-  const handleExportCsv = () => {
-    if (campaigns.length === 0) return;
-    const headers = [
-      'ID',
-      'Name',
-      'State',
-      'Delivery Status',
-      'Daily Budget (₹)',
-      'Spend (₹)',
-      'Sales (₹)',
-      'Orders',
-      'Clicks',
-      'Impressions',
-      'CTR (%)',
-      'CPC (₹)',
-      'ACOS (%)',
-      'ROAS',
-    ];
-    const rows = campaigns.map((c) => [
-      c.id,
-      `"${c.name.replace(/"/g, '""')}"`,
-      c.state,
-      c.delivery_status || 'DELIVERING',
-      c.daily_budget,
-      c.spend,
-      c.sales,
-      c.orders,
-      c.clicks,
-      c.impressions,
-      c.ctr !== null && c.ctr !== undefined ? `${c.ctr.toFixed(2)}%` : '—',
-      c.cpc !== null && c.cpc !== undefined ? `₹${c.cpc.toFixed(2)}` : '—',
-      c.acos_is_infinite ? 'INF' : c.acos !== null && c.acos !== undefined ? `${c.acos.toFixed(2)}%` : '—',
-      c.roas !== null && c.roas !== undefined ? `${c.roas.toFixed(2)}x` : '—',
-    ]);
-    const csv =
-      'data:text/csv;charset=utf-8,' +
-      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encoded = encodeURI(csv);
-    const link = document.createElement('a');
-    link.href = encoded;
-    link.download = `campaigns_inr_report.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const startIndex = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
   const endIndex = Math.min(page * pageSize, totalCount);
 
-  // Delivery status badge (High-contrast light theme)
+  // Delivery status badge (from Amazon's own state / serving status - humanised per 4.6)
   const getDeliveryBadge = (c: CampaignItem) => {
-    const status = (c.delivery_status || (c.state === 'PAUSED' ? 'PAUSED' : 'DELIVERING')).toUpperCase();
-    const styleMap: Record<string, string> = {
-      DELIVERING: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold',
-      ENABLED: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold',
-      OUT_OF_BUDGET: 'bg-red-100 text-red-900 border-red-300 font-semibold',
-      PAUSED: 'bg-amber-100 text-amber-900 border-amber-300 font-semibold',
-      ARCHIVED: 'bg-slate-200 text-slate-800 border-slate-300 font-semibold',
-      ENDED: 'bg-slate-200 text-slate-800 border-slate-300 font-semibold',
-    };
-    return (
-      <span
-        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border uppercase tracking-wider ${
-          styleMap[status] || styleMap.DELIVERING
-        }`}
-      >
-        {status.replace(/_/g, ' ')}
-      </span>
-    );
-  };
+    const raw = (c.delivery_status || (c.state === 'PAUSED' ? 'PAUSED' : 'DELIVERING')).toUpperCase();
+    let label = 'Delivering';
+    let style = 'bg-emerald-100 text-emerald-900 border-emerald-300';
 
-  // Health badge (High-contrast light theme)
-  const getHealthBadge = (c: CampaignItem) => {
-    const color = c.health_color || 'green';
-    const label = c.health_label || c.health || 'Healthy';
-    const colorMap: Record<string, string> = {
-      green: 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold',
-      red: 'bg-red-100 text-red-900 border-red-300 font-semibold',
-      amber: 'bg-amber-100 text-amber-900 border-amber-300 font-semibold',
-      blue: 'bg-sky-100 text-sky-900 border-sky-300 font-semibold',
-      slate: 'bg-slate-200 text-slate-800 border-slate-300 font-semibold',
-    };
+    if (raw === 'OUT_OF_BUDGET' || raw.includes('OUT_OF_BUDGET')) {
+      label = 'Out of budget';
+      style = 'bg-red-100 text-red-900 border-red-300';
+    } else if (raw === 'PAUSED' || raw.includes('PAUSED')) {
+      label = 'Paused';
+      style = 'bg-amber-100 text-amber-900 border-amber-300';
+    } else if (raw === 'ARCHIVED' || raw.includes('ARCHIVED')) {
+      label = 'Archived';
+      style = 'bg-slate-200 text-slate-800 border-slate-300';
+    } else if (raw === 'ENDED' || raw.includes('ENDED')) {
+      label = 'Ended';
+      style = 'bg-slate-200 text-slate-800 border-slate-300';
+    } else if (raw === 'PENDING_START_DATE' || raw.includes('SCHEDULED')) {
+      label = 'Scheduled';
+      style = 'bg-blue-100 text-blue-900 border-blue-300';
+    } else if (raw === 'PAYMENT_FAILURE') {
+      label = 'Payment failure';
+      style = 'bg-red-100 text-red-900 border-red-300';
+    } else if (raw === 'ACCOUNT_OUT_OF_BUDGET') {
+      label = 'Account out of budget';
+      style = 'bg-red-100 text-red-900 border-red-300';
+    }
+
     return (
       <span
-        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono border uppercase tracking-wider ${
-          colorMap[color] || colorMap.green
-        }`}
+        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border font-semibold tracking-wider ${style}`}
       >
         {label}
       </span>
@@ -351,41 +316,76 @@ export function CampaignTable({
 
   return (
     <div className="bg-surface border border-border-dim rounded-md shadow-2xs flex flex-col font-mono text-xs text-text-main">
-      {/* Top Table Toolbar */}
-      <div className="p-3 border-b border-border-dim flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+      {/* Top Table Toolbar (4.4) */}
+      <div className="p-3 border-b border-border-dim flex flex-wrap items-center justify-between gap-3 bg-slate-50/50">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm tracking-wide uppercase text-slate-800">
               Campaigns
             </span>
           </div>
 
-          {/* Search box */}
+          {/* Search box with clear icon */}
           <div className="relative w-64">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search campaigns, ID, ASIN..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs font-mono border border-border-dim rounded-md bg-white focus:outline-hidden focus:border-primary"
+              placeholder="Search campaigns by name..."
+              className="w-full pl-8 pr-7 py-1.5 text-xs font-mono border border-slate-300 rounded-md bg-white focus:outline-hidden focus:border-indigo-600 text-slate-900"
             />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={() => setSearchInput('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
+
+          {/* Compare Previous button (active when >= 2 rows are ticked per 4.4 / 4.8) */}
+          {selectedIds.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => setCompareModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-md border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 shadow-2xs transition-colors"
+            >
+              <GitCompare className="w-3.5 h-3.5" />
+              <span>Compare Previous ({selectedIds.length})</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
-          <ColumnChooser visibleColumns={visibleColumns} onChange={setVisibleColumns} />
-
+          {/* Hourly Data button (7.4: honest 'Hourly data is not connected' state) */}
           <button
             type="button"
-            onClick={handleExportCsv}
-            disabled={campaigns.length === 0}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-medium rounded-md border border-border-dim bg-surface hover:bg-slate-50 transition-colors shadow-2xs text-text-main disabled:opacity-50"
-            title="Export CSV"
+            onClick={() => {
+              setHourlyModalCampaignId(undefined);
+              setHourlyModalCampaignName(undefined);
+              setHourlyModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800"
+            title="Hourly Performance Data"
           >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Export</span>
+            <Clock className="w-3.5 h-3.5 text-slate-600" />
+            <span>Hourly Data</span>
           </button>
+
+          {/* Columns Chooser */}
+          <ColumnChooser visibleColumns={visibleColumns} onChange={setVisibleColumns} />
+
+          {/* Add Campaign Button */}
+          <Link
+            href="/campaigns/new"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Campaign</span>
+          </Link>
         </div>
       </div>
 
@@ -444,10 +444,6 @@ export function CampaignTable({
               {/* Dynamic Columns */}
               {visibleColumns.includes('status') && (
                 <th className="py-2.5 px-3 min-w-[110px]">Delivery</th>
-              )}
-
-              {visibleColumns.includes('health') && (
-                <th className="py-2.5 px-3 min-w-[100px]">Health</th>
               )}
 
               {visibleColumns.includes('daily_budget') && (
@@ -773,11 +769,6 @@ export function CampaignTable({
                       {/* Delivery Status */}
                       {visibleColumns.includes('status') && (
                         <td className="py-2.5 px-3">{getDeliveryBadge(c)}</td>
-                      )}
-
-                      {/* Health */}
-                      {visibleColumns.includes('health') && (
-                        <td className="py-2.5 px-3">{getHealthBadge(c)}</td>
                       )}
 
                       {/* Daily Budget (Fixed min-w, inline Popover + mini health bar) */}
@@ -1216,15 +1207,15 @@ export function CampaignTable({
                       >
                         <RowMenu
                           campaign={c}
-                          onStatusChange={async (id, nextStatus) => {
-                            onUpdateStatus(Number(id), nextStatus as CampaignState);
+                          onBidThreshold={(cmp) => {
+                            if (onBidThreshold) onBidThreshold(c);
+                            setBidThresholdCampaign(c);
+                            setBidThresholdModalOpen(true);
                           }}
-                          onDuplicate={(cmp) => {
-                            onDuplicate(Number(cmp.id));
-                          }}
-                          onEditBudget={(cmp) => {
-                            setEditingBudgetId(Number(cmp.id));
-                            setEditingBudgetVal(cmp.daily_budget || 100);
+                          onHourlyTracking={(cmp) => {
+                            setHourlyModalCampaignId(Number(cmp.id));
+                            setHourlyModalCampaignName(cmp.name);
+                            setHourlyModalOpen(true);
                           }}
                         />
                       </td>
@@ -1303,7 +1294,6 @@ export function CampaignTable({
                 </td>
 
                 {visibleColumns.includes('status') && <td className="py-2.5 px-3" />}
-                {visibleColumns.includes('health') && <td className="py-2.5 px-3" />}
                 {visibleColumns.includes('daily_budget') && <td className="py-2.5 px-3 text-right" />}
                 {visibleColumns.includes('bidding_strategy') && <td className="py-2.5 px-3" />}
                 {visibleColumns.includes('placement_multipliers') && <td className="py-2.5 px-3" />}
@@ -1430,6 +1420,44 @@ export function CampaignTable({
         campaigns={campaigns}
         onAction={onBulkAction}
         onClearSelection={() => setSelectedIds([])}
+      />
+
+      {/* Bid Threshold Modal (Phase 5 / D9) */}
+      {bidThresholdCampaign && (
+        <BidThresholdModal
+          open={bidThresholdModalOpen}
+          onClose={() => {
+            setBidThresholdModalOpen(false);
+            setBidThresholdCampaign(null);
+          }}
+          campaignId={bidThresholdCampaign.id}
+          campaignName={bidThresholdCampaign.name}
+          onSuccess={() => {
+            if (onRetry) onRetry();
+          }}
+        />
+      )}
+
+      {/* Hourly Data / Tracking Modal (7.4) */}
+      <HourlyModal
+        open={hourlyModalOpen}
+        onClose={() => {
+          setHourlyModalOpen(false);
+          setHourlyModalCampaignId(undefined);
+          setHourlyModalCampaignName(undefined);
+        }}
+        campaignId={hourlyModalCampaignId}
+        campaignName={hourlyModalCampaignName}
+      />
+
+      {/* Compare Previous Modal (4.8) */}
+      <ComparePreviousModal
+        open={compareModalOpen}
+        onClose={() => setCompareModalOpen(false)}
+        campaigns={campaigns}
+        selectedIds={selectedIds}
+        currentStart={dateRange?.start || ''}
+        currentEnd={dateRange?.end || ''}
       />
     </div>
   );

@@ -4,7 +4,7 @@ import {
   calculateMaxEffectiveBid,
   isDeltaFavorable,
 } from '@/components/campaigns/wizard/helpers';
-import { getX, getY } from '@/components/campaigns/PerformanceChart';
+import { getX, getY, formatDataLabelValue, computePointChange } from '@/components/campaigns/PerformanceChart';
 
 describe('Phase 4A: Strict Indian Formatting & Math Helpers', () => {
   it('formats Indian currency properly with ₹ symbol and en-IN digit grouping', () => {
@@ -69,6 +69,52 @@ describe('Phase 4A: Strict Indian Formatting & Math Helpers', () => {
     const yZero = getY(0, 0, 300, 10);
     expect(Number.isNaN(yZero)).toBe(false);
     expect(yZero).toBe(310); // padTop + plotHeight
+  });
+
+  it('D6 View Data Labels: formats data label values accurately by metric unit', () => {
+    // Money: Indian whole number format or compact
+    expect(formatDataLabelValue(1250, 'spend')).toContain('1,250');
+    expect(formatDataLabelValue(150000, 'sales')).toBe('₹1.50L');
+    expect(formatDataLabelValue(45.5, 'cpc')).toContain('45.50');
+
+    // Percentages
+    expect(formatDataLabelValue(22.5, 'acos')).toBe('22.5%');
+    expect(formatDataLabelValue(2.34, 'ctr')).toBe('2.3%');
+
+    // Ratios
+    expect(formatDataLabelValue(4.567, 'roas')).toBe('4.57x');
+
+    // Counts
+    expect(formatDataLabelValue(540, 'clicks')).toBe('540');
+  });
+
+  it('D6 View Changes: computes stock-market style % changes vs previous point by direction only', () => {
+    const mockData = [
+      { bucket: '2026-11-01', spend: 100, sales: 500 },
+      { bucket: '2026-11-02', spend: 150, sales: 400 },
+      { bucket: '2026-11-03', spend: 150, sales: 400 },
+    ];
+
+    // Index 0: First point has no previous point
+    expect(computePointChange(mockData, 'spend', 0)).toBeNull();
+
+    // Index 1: Spend up 100 -> 150 = +50.0% (green ▲)
+    const spendChange = computePointChange(mockData, 'spend', 1);
+    expect(spendChange?.symbol).toBe('▲');
+    expect(spendChange?.text).toBe('▲ +50.0%');
+    expect(spendChange?.color).toBe('#16a34a'); // Green
+
+    // Index 1: Sales down 500 -> 400 = -20.0% (red ▼)
+    const salesChange = computePointChange(mockData, 'sales', 1);
+    expect(salesChange?.symbol).toBe('▼');
+    expect(salesChange?.text).toBe('▼ -20.0%');
+    expect(salesChange?.color).toBe('#dc2626'); // Red
+
+    // Index 2: Spend unchanged 150 -> 150 = 0% (slate —)
+    const flatChange = computePointChange(mockData, 'spend', 2);
+    expect(flatChange?.symbol).toBe('—');
+    expect(flatChange?.text).toBe('0%');
+    expect(flatChange?.color).toBe('#64748b'); // Slate
   });
 });
 

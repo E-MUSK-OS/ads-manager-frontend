@@ -1,69 +1,42 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, use, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, use, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
-  Copy,
-  Plus,
-  Trash2,
-  Calendar,
   Layers,
-  KeyRound,
   Search,
-  ShieldBan,
-  RotateCw,
-  SlidersHorizontal,
-  History,
-  Sparkles,
-  ArrowRight,
-  TrendingUp,
-  Percent,
-  Check,
-  AlertTriangle,
   Pencil,
   BarChart3,
+  Check,
+  AlertTriangle,
+  RotateCw,
+  Info,
 } from 'lucide-react';
 import { useActiveAccount } from '@/lib/useActiveAccount';
 import { money, pct, ratio, num } from '@/lib/format';
-import { calculateMaxEffectiveBid, type BiddingStrategy, findKeywordConflicts } from '@/components/campaigns/wizard/helpers';
 import {
   getCampaign,
   getCampaignSummary,
   getCampaignAdGroups,
-  patchAdGroup,
+  getCampaignPlacements,
+  getCampaignHistory,
   patchCampaign,
   updateCampaignState,
-  updateCampaignBudget,
-  duplicateCampaign,
-  getCampaignPlacements,
-  patchCampaignPlacements,
-  getCampaignTargets,
-  patchCampaignTarget,
-  getCampaignNegatives,
-  createCampaignNegative,
-  deleteCampaignNegative,
-  getSearchTerms,
-  harvestSearchTerm,
-  negateSearchTerm,
-  getCampaignHistory,
 } from '@/lib/api-client';
 import type {
   CampaignItem,
   CampaignSummaryResponse,
   AdGroupItem,
-  SearchTermItem,
   CampaignState,
   PlacementItem,
   CampaignHistoryItem,
 } from '@/lib/types/campaign';
+import type { MetricKey } from '@/components/campaigns/wizard/helpers';
 import { Tabs, type TabItem } from '@/components/ui/Tabs';
 import { Switch } from '@/components/ui/Switch';
-import { Popover } from '@/components/ui/Popover';
-import { Modal } from '@/components/ui/Modal';
 import { MoneyInput } from '@/components/ui/MoneyInput';
-import { PercentInput } from '@/components/ui/PercentInput';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { KpiCards } from '@/components/campaigns/KpiCards';
@@ -72,22 +45,15 @@ import { DateRangePicker, DateRangeState } from '@/components/campaigns/DateRang
 import { useToast } from '@/components/ui/toast';
 
 interface PageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }> | { id: string };
 }
 
-type TabKey =
-  | 'ad-groups'
-  | 'placements'
-  | 'targeting'
-  | 'negatives'
-  | 'search-terms'
-  | 'budget-rules'
-  | 'history';
+type TabKey = 'ad-groups' | 'placements' | 'settings' | 'history';
 
-function CampaignDetailContent({ params }: PageProps) {
+export function CampaignDetailContent({ params }: PageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const resolvedParams = use(params);
+  const resolvedParams = typeof (params as any)?.then === 'function' ? use(params as Promise<{ id: string }>) : (params as { id: string });
   const campaignId = Number(resolvedParams.id);
 
   const { todayInTz } = useActiveAccount();
@@ -95,12 +61,7 @@ function CampaignDetailContent({ params }: PageProps) {
 
   const tabParam = searchParams.get('tab') as TabKey;
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
-    if (
-      tabParam &&
-      ['ad-groups', 'placements', 'targeting', 'negatives', 'search-terms', 'budget-rules', 'history'].includes(
-        tabParam
-      )
-    ) {
+    if (tabParam && ['ad-groups', 'placements', 'settings', 'history'].includes(tabParam)) {
       return tabParam;
     }
     return 'ad-groups';
@@ -127,6 +88,21 @@ function CampaignDetailContent({ params }: PageProps) {
     compare: false,
   });
 
+  // Chart controls
+  const [showChart, setShowChart] = useState(false);
+  const [granularity, setGranularity] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [chartMetrics, setChartMetrics] = useState<MetricKey[]>(['spend', 'sales', 'acos', 'roas']);
+
+  const handleSelectMetric = (metric: MetricKey) => {
+    setChartMetrics((prev) => {
+      if (prev.includes(metric)) {
+        if (prev.length <= 1) return prev; // Keep at least one metric
+        return prev.filter((m) => m !== metric);
+      }
+      return [...prev, metric]; // Allow selecting all metrics
+    });
+  };
+
   // Data states
   const [campaign, setCampaign] = useState<CampaignItem | null>(null);
   const [summary, setSummary] = useState<CampaignSummaryResponse | null>(null);
@@ -135,55 +111,45 @@ function CampaignDetailContent({ params }: PageProps) {
 
   // Tab-specific data
   const [adGroups, setAdGroups] = useState<AdGroupItem[]>([]);
+  const [adGroupSearch, setAdGroupSearch] = useState('');
+  const [adGroupStatusFilter, setAdGroupStatusFilter] = useState<'ALL' | 'ENABLED' | 'PAUSED'>('ALL');
   const [placements, setPlacements] = useState<PlacementItem[]>([]);
-  const [targets, setTargets] = useState<any[]>([]);
-  const [negatives, setNegatives] = useState<{
-    negative_keywords: any[];
-    negative_brands: string[];
-    items: any[];
-  }>({ negative_keywords: [], negative_brands: [], items: [] });
-  const [searchTerms, setSearchTerms] = useState<SearchTermItem[]>([]);
   const [historyItems, setHistoryItems] = useState<CampaignHistoryItem[]>([]);
 
-  // UI state for header
-  const [isEditingBudget, setIsEditingBudget] = useState(false);
-  const [budgetValue, setBudgetValue] = useState<number>(500);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [nameValue, setNameValue] = useState<string>('');
-  const [showChart, setShowChart] = useState(false);
+  // Settings form states
+  const [formName, setFormName] = useState('');
+  const [formState, setFormState] = useState<CampaignState>('ENABLED');
+  const [formBudget, setFormBudget] = useState<number>(500);
+  const [formStartDate, setFormStartDate] = useState('');
+  const [formEndDate, setFormEndDate] = useState<string | null>(null);
+  const [formNoEndDate, setFormNoEndDate] = useState(true);
+  const [formStrategy, setFormStrategy] = useState<string>('DOWN_ONLY');
+  const [savingSettings, setSavingSettings] = useState(false);
 
-  // Placements form state
-  const [topModifier, setTopModifier] = useState<number>(0);
-  const [pagesModifier, setPagesModifier] = useState<number>(0);
-  const [restModifier, setRestModifier] = useState<number>(0);
-  const [savingPlacements, setSavingPlacements] = useState(false);
+  // Quick edit modals (Q6)
+  const [quickEditNameOpen, setQuickEditNameOpen] = useState(false);
+  const [quickNameValue, setQuickNameValue] = useState('');
+  const [quickEditBudgetOpen, setQuickEditBudgetOpen] = useState(false);
+  const [quickBudgetValue, setQuickBudgetValue] = useState<number>(500);
 
-  // Modals
-  const [createAdGroupOpen, setCreateAdGroupOpen] = useState(false);
-  const [newAdGroupName, setNewAdGroupName] = useState('');
-  const [newAdGroupBid, setNewAdGroupBid] = useState<number>(15);
+  // Confirmation dialog (Q6)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmLabel?: string;
+    variant?: 'primary' | 'danger';
+    onConfirm: () => Promise<void>;
+  }>({
+    open: false,
+    title: '',
+    description: '',
+    confirmLabel: 'Confirm Changes',
+    variant: 'primary',
+    onConfirm: async () => {},
+  });
 
-  const [harvestModalOpen, setHarvestModalOpen] = useState(false);
-  const [harvestTerm, setHarvestTerm] = useState<SearchTermItem | null>(null);
-  const [harvestAdGroupId, setHarvestAdGroupId] = useState<number | ''>('');
-  const [harvestMatchType, setHarvestMatchType] = useState<'EXACT' | 'PHRASE' | 'BROAD'>('EXACT');
-  const [harvestBid, setHarvestBid] = useState<number>(15);
-
-  const [negateModalOpen, setNegateModalOpen] = useState(false);
-  const [negateTerm, setNegateTerm] = useState<SearchTermItem | null>(null);
-  const [negateMatchType, setNegateMatchType] = useState<'NEGATIVE_EXACT' | 'NEGATIVE_PHRASE'>('NEGATIVE_EXACT');
-  const [negateLevel, setNegateLevel] = useState<'CAMPAIGN' | 'AD_GROUP'>('CAMPAIGN');
-
-  const [addNegModalOpen, setAddNegModalOpen] = useState(false);
-  const [newNegText, setNewNegText] = useState('');
-  const [newNegMatch, setNewNegMatch] = useState<'NEGATIVE_EXACT' | 'NEGATIVE_PHRASE'>('NEGATIVE_EXACT');
-
-  const [addTargetModalOpen, setAddTargetModalOpen] = useState(false);
-  const [newTargetText, setNewTargetText] = useState('');
-  const [newTargetMatch, setNewTargetMatch] = useState<'EXACT' | 'PHRASE' | 'BROAD'>('EXACT');
-  const [newTargetBid, setNewTargetBid] = useState<number>(15);
-
-  // Load campaign and summary
+  // Load campaign & summary
   const loadCampaignData = useCallback(async () => {
     if (!campaignId) return;
     setLoading(true);
@@ -194,21 +160,30 @@ function CampaignDetailContent({ params }: PageProps) {
           campaign_id: campaignId,
           start: dateRange.start,
           end: dateRange.end,
+          granularity,
         }),
       ]);
       setCampaign(cRes);
-      setBudgetValue(cRes.daily_budget || 100);
-      setNameValue(cRes.name || '');
-      setTopModifier(cRes.placement_top_of_search_pct ?? 0);
-      setPagesModifier(cRes.placement_product_pages_pct ?? 0);
-      setRestModifier(cRes.placement_rest_of_search_pct ?? 0);
       setSummary(sRes);
+
+      // Populate Settings form
+      setFormName(cRes.name || '');
+      setFormState(cRes.state || 'ENABLED');
+      setFormBudget(cRes.daily_budget || 500);
+      setFormStartDate(cRes.start_date || today);
+      setFormEndDate(cRes.end_date || null);
+      setFormNoEndDate(!cRes.end_date);
+      setFormStrategy(cRes.bidding_strategy || 'DOWN_ONLY');
+
+      // Populate quick edit states
+      setQuickNameValue(cRes.name || '');
+      setQuickBudgetValue(cRes.daily_budget || 500);
     } catch (err: any) {
       showToast({ title: 'Failed to load campaign', message: err?.message, type: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [campaignId, dateRange.start, dateRange.end]);
+  }, [campaignId, dateRange.start, dateRange.end, granularity, today, showToast]);
 
   useEffect(() => {
     loadCampaignData();
@@ -228,18 +203,6 @@ function CampaignDetailContent({ params }: PageProps) {
           end_date: dateRange.end,
         });
         setPlacements(plcRes);
-      } else if (activeTab === 'targeting') {
-        const tgtRes = await getCampaignTargets(campaignId, {
-          start_date: dateRange.start,
-          end_date: dateRange.end,
-        });
-        setTargets(tgtRes);
-      } else if (activeTab === 'negatives') {
-        const negRes = await getCampaignNegatives(campaignId);
-        setNegatives(negRes);
-      } else if (activeTab === 'search-terms') {
-        const stRes = await getSearchTerms(campaignId);
-        setSearchTerms(stRes);
       } else if (activeTab === 'history') {
         const histRes = await getCampaignHistory(campaignId);
         setHistoryItems(histRes);
@@ -249,1240 +212,1046 @@ function CampaignDetailContent({ params }: PageProps) {
     } finally {
       setTabLoading(false);
     }
-  }, [campaignId, activeTab, dateRange.start, dateRange.end]);
+  }, [campaignId, activeTab, dateRange.start, dateRange.end, showToast]);
 
   useEffect(() => {
     loadTabData();
   }, [loadTabData]);
 
-  // Status toggle
-  const handleToggleStatus = async () => {
+  // Q6 Status Toggle Handler
+  const handleToggleStateSwitch = () => {
     if (!campaign || campaign.state === 'ARCHIVED') return;
     const nextState: CampaignState = campaign.state === 'ENABLED' ? 'PAUSED' : 'ENABLED';
-    setCampaign({ ...campaign, state: nextState });
-    try {
-      await updateCampaignState(campaign.id, nextState);
-      showToast({ title: 'Status updated', message: `Campaign is now ${nextState.toLowerCase()}`, type: 'success' });
-    } catch (err: any) {
-      setCampaign(campaign);
-      showToast({ title: 'Update failed', message: err?.message, type: 'error' });
-    }
+
+    setConfirmDialog({
+      open: true,
+      title: 'Confirm Campaign Status Change',
+      description: `Are you sure you want to change campaign status from ${campaign.state} to ${nextState}? This update will be sent directly to the Amazon Ads API and logged in Campaign History.`,
+      confirmLabel: `Set to ${nextState}`,
+      variant: nextState === 'PAUSED' ? 'danger' : 'primary',
+      onConfirm: async () => {
+        try {
+          await updateCampaignState(campaign.id, nextState);
+          showToast({
+            title: 'Status Updated',
+            message: `Campaign status changed to ${nextState} on Amazon Ads.`,
+            type: 'success',
+          });
+          await loadCampaignData();
+          if (activeTab === 'history') await loadTabData();
+        } catch (err: any) {
+          showToast({
+            title: 'Amazon Ads API Error',
+            message: err?.message || 'Failed to update campaign state on Amazon Ads',
+            type: 'error',
+          });
+        } finally {
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+        }
+      },
+    });
   };
 
-  // Inline budget save
-  const handleSaveBudget = async () => {
-    if (!campaign || campaign.state === 'ARCHIVED') return;
-    if (budgetValue < 100) {
-      showToast({ title: 'Invalid budget', message: 'Minimum daily budget is ₹100.00', type: 'error' });
-      return;
-    }
-    try {
-      await updateCampaignBudget(campaign.id, budgetValue);
-      setCampaign({ ...campaign, daily_budget: budgetValue });
-      setIsEditingBudget(false);
-      showToast({ title: 'Budget updated', message: `Daily budget saved to ${money(budgetValue)}`, type: 'success' });
-    } catch (err: any) {
-      showToast({ title: 'Failed to update budget', message: err?.message, type: 'error' });
-    }
-  };
-
-  // Inline name save
-  const handleSaveName = async () => {
-    if (!campaign || campaign.state === 'ARCHIVED') return;
-    const trimmed = nameValue.trim();
-    if (!trimmed) {
-      showToast({ title: 'Invalid name', message: 'Campaign name cannot be empty', type: 'error' });
-      return;
-    }
-    try {
-      await patchCampaign(campaign.id, { name: trimmed });
-      setCampaign({ ...campaign, name: trimmed });
-      setIsEditingName(false);
-      showToast({ title: 'Name updated', message: `Campaign renamed to "${trimmed}"`, type: 'success' });
-    } catch (err: any) {
-      showToast({ title: 'Failed to update name', message: err?.message, type: 'error' });
-    }
-  };
-
-  // Duplicate campaign
-  const handleDuplicate = async () => {
+  // Q6 Quick Name Save
+  const handleQuickNameSave = () => {
     if (!campaign) return;
-    try {
-      const copy = await duplicateCampaign(campaign.id);
-      showToast({ title: 'Campaign duplicated', message: `Created "${copy.name}"`, type: 'success' });
-      router.push(`/campaigns/${copy.id}`);
-    } catch (err: any) {
-      showToast({ title: 'Duplicate failed', message: err?.message, type: 'error' });
+    const trimmed = quickNameValue.trim();
+    if (!trimmed) {
+      showToast({ title: 'Invalid Name', message: 'Campaign name cannot be empty', type: 'error' });
+      return;
     }
+    if (trimmed === campaign.name) {
+      setQuickEditNameOpen(false);
+      return;
+    }
+
+    setConfirmDialog({
+      open: true,
+      title: 'Confirm Campaign Name Update',
+      description: `Change campaign name from "${campaign.name}" to "${trimmed}"? This change will be submitted to the Amazon Ads API.`,
+      confirmLabel: 'Update Name',
+      variant: 'primary',
+      onConfirm: async () => {
+        try {
+          await patchCampaign(campaign.id, { name: trimmed });
+          showToast({ title: 'Name Updated', message: 'Campaign name updated successfully.', type: 'success' });
+          setQuickEditNameOpen(false);
+          await loadCampaignData();
+          if (activeTab === 'history') await loadTabData();
+        } catch (err: any) {
+          showToast({ title: 'Update Failed', message: err?.message || 'Failed to update name', type: 'error' });
+        } finally {
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+        }
+      },
+    });
   };
 
-  // Save placements modifiers
-  const handleSavePlacements = async () => {
-    if (!campaign || campaign.state === 'ARCHIVED') return;
-    setSavingPlacements(true);
-    try {
-      const updated = await patchCampaignPlacements(campaign.id, {
-        top_of_search_pct: topModifier,
-        product_pages_pct: pagesModifier,
-        rest_of_search_pct: restModifier,
-      });
-      setPlacements(updated);
-      setCampaign({
-        ...campaign,
-        placement_top_of_search_pct: topModifier,
-        placement_product_pages_pct: pagesModifier,
-        placement_rest_of_search_pct: restModifier,
-      });
-      showToast({ title: 'Placements updated', message: 'Placement bid adjustments saved successfully.', type: 'success' });
-    } catch (err: any) {
-      showToast({ title: 'Save failed', message: err?.message, type: 'error' });
-    } finally {
-      setSavingPlacements(false);
+  // Q6 Quick Budget Save
+  const handleQuickBudgetSave = () => {
+    if (!campaign) return;
+    if (quickBudgetValue < 100) {
+      showToast({ title: 'Invalid Budget', message: 'Minimum daily budget in India is ₹100.00', type: 'error' });
+      return;
     }
+    if (quickBudgetValue === campaign.daily_budget) {
+      setQuickEditBudgetOpen(false);
+      return;
+    }
+
+    const warningText = quickBudgetValue < 500
+      ? '\n\nNote: Amazon allows lower budgets, but ₹500+/day is recommended in India to collect statistically useful data.'
+      : '';
+
+    setConfirmDialog({
+      open: true,
+      title: 'Confirm Daily Budget Change',
+      description: `Change daily budget from ${money(campaign.daily_budget)} to ${money(quickBudgetValue)}? This update will be submitted to the Amazon Ads API.${warningText}`,
+      confirmLabel: 'Update Budget',
+      variant: 'primary',
+      onConfirm: async () => {
+        try {
+          await patchCampaign(campaign.id, { daily_budget: quickBudgetValue });
+          showToast({
+            title: 'Budget Updated',
+            message: `Daily budget set to ${money(quickBudgetValue)} on Amazon Ads.`,
+            type: 'success',
+          });
+          setQuickEditBudgetOpen(false);
+          await loadCampaignData();
+          if (activeTab === 'history') await loadTabData();
+        } catch (err: any) {
+          showToast({ title: 'Budget Update Failed', message: err?.message || 'Failed to update budget', type: 'error' });
+        } finally {
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+        }
+      },
+    });
   };
 
-  // Harvest search term
-  const handleExecuteHarvest = async () => {
-    if (!harvestTerm || !harvestBid) return;
-    try {
-      await harvestSearchTerm(campaignId, {
-        search_term: harvestTerm.search_term,
-        match_type: harvestMatchType,
-        bid: harvestBid,
-        ad_group_id: harvestAdGroupId ? Number(harvestAdGroupId) : undefined,
-      });
-      showToast({
-        title: 'Search term harvested',
-        message: `Added "${harvestTerm.search_term}" as ${harvestMatchType} keyword (${money(harvestBid)}).`,
-        type: 'success',
-      });
-      setHarvestModalOpen(false);
-      loadTabData();
-    } catch (err: any) {
-      showToast({ title: 'Harvest failed', message: err?.message, type: 'error' });
+  // Q6 Settings Tab Save
+  const handleSettingsSave = () => {
+    if (!campaign) return;
+
+    const trimmedName = formName.trim();
+    if (!trimmedName) {
+      showToast({ title: 'Invalid Name', message: 'Campaign name cannot be empty', type: 'error' });
+      return;
     }
+    if (formBudget < 100) {
+      showToast({ title: 'Invalid Budget', message: 'Minimum daily budget in India is ₹100.00', type: 'error' });
+      return;
+    }
+    if (!formStartDate) {
+      showToast({ title: 'Invalid Start Date', message: 'Start date is required', type: 'error' });
+      return;
+    }
+    const finalEndDate = formNoEndDate ? null : formEndDate;
+    if (finalEndDate && finalEndDate < formStartDate) {
+      showToast({ title: 'Invalid Date Range', message: 'End date cannot be earlier than start date', type: 'error' });
+      return;
+    }
+
+    // Determine what changed
+    const changes: Record<string, any> = {};
+    const changeLines: string[] = [];
+
+    if (trimmedName !== campaign.name) {
+      changes.name = trimmedName;
+      changeLines.push(`• Campaign Name: "${campaign.name}" → "${trimmedName}"`);
+    }
+    if (formState !== campaign.state) {
+      changes.state = formState;
+      changeLines.push(`• State: ${campaign.state} → ${formState}`);
+    }
+    if (formBudget !== campaign.daily_budget) {
+      changes.daily_budget = formBudget;
+      changeLines.push(`• Daily Budget: ${money(campaign.daily_budget)} → ${money(formBudget)}`);
+    }
+    if (formStartDate !== campaign.start_date) {
+      changes.start_date = formStartDate;
+      changeLines.push(`• Start Date: ${campaign.start_date} → ${formStartDate}`);
+    }
+    if (finalEndDate !== campaign.end_date) {
+      changes.end_date = finalEndDate;
+      changeLines.push(`• End Date: ${campaign.end_date || 'No end date'} → ${finalEndDate || 'No end date'}`);
+    }
+    if (formStrategy !== campaign.bidding_strategy) {
+      changes.bidding_strategy = formStrategy;
+      changeLines.push(`• Bidding Strategy: ${campaign.bidding_strategy} → ${formStrategy}`);
+    }
+
+    if (changeLines.length === 0) {
+      showToast({ title: 'No Changes', message: 'No settings were modified', type: 'info' });
+      return;
+    }
+
+    const warningBudget = formBudget < 500
+      ? '\n\nNote: Amazon allows lower budgets, but ₹500+/day is recommended in India to collect statistically useful data.'
+      : '';
+
+    setConfirmDialog({
+      open: true,
+      title: 'Confirm Amazon Ads Campaign Changes',
+      description: `The following modifications will be submitted to the Amazon Ads API and logged in Campaign History:\n\n${changeLines.join('\n')}${warningBudget}`,
+      confirmLabel: 'Confirm & Save to Amazon',
+      variant: 'primary',
+      onConfirm: async () => {
+        setSavingSettings(true);
+        try {
+          await patchCampaign(campaign.id, changes);
+          showToast({
+            title: 'Campaign Settings Saved',
+            message: 'All updates applied successfully to Amazon Ads.',
+            type: 'success',
+          });
+          await loadCampaignData();
+          if (activeTab === 'history') await loadTabData();
+        } catch (err: any) {
+          showToast({
+            title: 'Amazon Ads API Error',
+            message: err?.message || 'Failed to save campaign settings',
+            type: 'error',
+          });
+        } finally {
+          setSavingSettings(false);
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+        }
+      },
+    });
   };
 
-  // Negate search term
-  const handleExecuteNegate = async () => {
-    if (!negateTerm) return;
-    try {
-      await negateSearchTerm(campaignId, {
-        search_term: negateTerm.search_term,
-        match_type: negateMatchType,
-        level: negateLevel,
-      });
-      showToast({
-        title: 'Search term excluded',
-        message: `Excluded "${negateTerm.search_term}" as ${negateMatchType} at ${negateLevel.toLowerCase()} level.`,
-        type: 'success',
-      });
-      setNegateModalOpen(false);
-      loadTabData();
-    } catch (err: any) {
-      showToast({ title: 'Negation failed', message: err?.message, type: 'error' });
-    }
+  const handleSettingsReset = () => {
+    if (!campaign) return;
+    setFormName(campaign.name || '');
+    setFormState(campaign.state || 'ENABLED');
+    setFormBudget(campaign.daily_budget || 500);
+    setFormStartDate(campaign.start_date || today);
+    setFormEndDate(campaign.end_date || null);
+    setFormNoEndDate(!campaign.end_date);
+    setFormStrategy(campaign.bidding_strategy || 'DOWN_ONLY');
+    showToast({ title: 'Form Reset', message: 'Settings form reset to current values', type: 'info' });
   };
 
-  // Add custom negative keyword
-  const handleAddNegativeKeyword = async () => {
-    const text = newNegText.trim();
-    if (!text) return;
-    try {
-      await createCampaignNegative(campaignId, {
-        keyword_text: text,
-        match_type: newNegMatch,
-        level: 'CAMPAIGN',
-      });
-      showToast({ title: 'Negative added', message: `Added "${text}" as ${newNegMatch}.`, type: 'success' });
-      setAddNegModalOpen(false);
-      setNewNegText('');
-      loadTabData();
-    } catch (err: any) {
-      showToast({ title: 'Failed to add negative', message: err?.message, type: 'error' });
-    }
-  };
+  // Filtered Ad Groups
+  const filteredAdGroups = useMemo(() => {
+    return adGroups.filter((ag) => {
+      if (adGroupStatusFilter !== 'ALL' && ag.state !== adGroupStatusFilter) return false;
+      if (adGroupSearch) {
+        return ag.name.toLowerCase().includes(adGroupSearch.toLowerCase());
+      }
+      return true;
+    });
+  }, [adGroups, adGroupSearch, adGroupStatusFilter]);
 
-  // Delete negative
-  const handleDeleteNegativeItem = async (negId: number | string) => {
-    try {
-      await deleteCampaignNegative(campaignId, negId);
-      showToast({ title: 'Negative removed', message: 'Targeting restriction lifted.', type: 'info' });
-      loadTabData();
-    } catch (err: any) {
-      showToast({ title: 'Delete failed', message: err?.message, type: 'error' });
-    }
-  };
+  // Ad Groups totals
+  const adGroupsTotals = useMemo(() => {
+    return filteredAdGroups.reduce(
+      (acc, ag) => ({
+        spend: acc.spend + (ag.spend || 0),
+        orders: acc.orders + (ag.orders || 0),
+        sales: acc.sales + (ag.sales || 0),
+        clicks: acc.clicks + (ag.clicks || 0),
+      }),
+      { spend: 0, orders: 0, sales: 0, clicks: 0 }
+    );
+  }, [filteredAdGroups]);
 
-  // Tabs configuration
+  // Tab Items (Q13 Approved: Ad groups, Placements, Settings, History)
   const tabItems: TabItem[] = [
-    { id: 'ad-groups', label: 'Ad Groups', count: adGroups.length },
+    { id: 'ad-groups', label: 'Ad groups', count: adGroups.length },
     { id: 'placements', label: 'Placements' },
-    { id: 'targeting', label: 'Targeting', count: targets.length },
-    {
-      id: 'negatives',
-      label: 'Negative Targeting',
-      count:
-        (negatives.negative_keywords?.length || 0) +
-        (negatives.negative_brands?.length || 0) +
-        (negatives.items?.length || 0),
-    },
-    { id: 'search-terms', label: 'Search Terms', count: searchTerms.length },
-    { id: 'budget-rules', label: 'Budget Rules' },
+    { id: 'settings', label: 'Settings' },
     { id: 'history', label: 'History', count: historyItems.length },
   ];
 
-  if (loading && !campaign) {
-    return (
-      <div className="min-h-screen bg-graph-paper-faint p-6 flex items-center justify-center font-mono text-xs text-slate-500">
-        <div className="inline-flex items-center gap-2">
-          <RotateCw className="w-4 h-4 animate-spin text-primary" />
-          <span>Loading Amazon Ads campaign...</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (!campaign) {
-    return (
-      <div className="min-h-screen bg-graph-paper-faint p-6">
-        <div className="bg-surface border border-border-dim rounded-md p-6 max-w-md mx-auto text-center font-mono text-xs">
-          <p className="font-bold text-slate-900 mb-2">Campaign not found</p>
-          <Link href="/campaigns" className="text-primary hover:underline">
-            ← Return to campaigns manager
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const isArchived = campaign.state === 'ARCHIVED';
+  const isArchived = campaign?.state === 'ARCHIVED';
 
   return (
-    <div className="min-h-screen bg-graph-paper-faint p-6 space-y-5 font-mono text-xs text-text-main">
+    <div className="space-y-4 max-w-7xl mx-auto pb-12">
       {/* Top Breadcrumb & Actions Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 text-slate-500 text-[11px]">
-        <div className="flex items-center gap-2">
-          <Link href="/campaigns" className="hover:text-primary transition-colors flex items-center gap-1 font-medium">
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Campaigns</span>
-          </Link>
-          <span>›</span>
-          <span className="font-semibold text-slate-800 truncate max-w-md">{campaign.name}</span>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+        <Link
+          href="/campaigns"
+          className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4 mr-1 text-slate-400" />
+          Back to Campaigns
+        </Link>
 
-        <div className="flex items-center gap-2">
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Dual-Axis Charts Toggle */}
           <button
             type="button"
-            onClick={handleDuplicate}
-            className="p-1.5 rounded-md border border-border-dim bg-surface hover:bg-slate-50 text-slate-700 inline-flex items-center gap-1 text-xs"
-            title="Duplicate campaign"
-          >
-            <Copy className="w-3.5 h-3.5 text-slate-500" />
-            <span>Duplicate</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowChart((prev) => !prev)}
-            className={`p-1.5 rounded-md border text-xs inline-flex items-center gap-1 ${
-              showChart ? 'bg-primary/10 border-primary text-primary' : 'border-border-dim bg-surface text-slate-700'
+            onClick={() => setShowChart(!showChart)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+              showChart
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-semibold'
+                : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
             }`}
+            title="Toggle Performance Charts"
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            <span>Chart</span>
+            <span>{showChart ? 'Hide Charts' : 'Show Charts'}</span>
           </button>
+
+          {/* Date Range Picker */}
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
         </div>
       </div>
 
-      {/* Campaign Detail Header Card */}
-      <div className="bg-surface border border-border-dim rounded-md p-5 shadow-2xs space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            {/* State Switch */}
-            <div title={isArchived ? 'Archived campaigns cannot be modified' : 'Toggle campaign state'}>
-              <Switch
-                size="md"
-                checked={campaign.state === 'ENABLED'}
-                disabled={isArchived}
-                onChange={handleToggleStatus}
-                aria-label={`Toggle ${campaign.name}`}
-              />
-            </div>
+      {/* Main Campaign Header Banner */}
+      <div className="bg-surface border border-border-dim rounded-lg p-5 shadow-2xs">
+        {loading || !campaign ? (
+          <div className="py-8 text-center text-slate-400 text-sm">
+            <RotateCw className="w-5 h-5 mx-auto mb-2 animate-spin text-slate-400" />
+            Loading campaign details...
+          </div>
+        ) : (
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2">
+              {/* Name & Quick Status Switch */}
+              <div className="flex flex-wrap items-center gap-3">
+                <Switch
+                  checked={campaign.state === 'ENABLED'}
+                  onChange={handleToggleStateSwitch}
+                  disabled={isArchived}
+                  size="md"
+                  aria-label="Toggle campaign status"
+                />
 
-            <div>
-              <div className="flex items-center gap-2">
-                {isEditingName ? (
-                  <div className="flex items-center gap-1">
+                {quickEditNameOpen ? (
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="text"
-                      autoFocus
-                      value={nameValue}
-                      onChange={(e) => setNameValue(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleSaveName();
-                        if (e.key === 'Escape') setIsEditingName(false);
-                      }}
-                      className="px-2 py-0.5 border border-primary rounded text-sm font-bold font-mono"
+                      value={quickNameValue}
+                      onChange={(e) => setQuickNameValue(e.target.value)}
+                      className="px-2.5 py-1 text-base font-bold text-slate-900 border border-indigo-300 rounded focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
                     />
-                    <button type="button" onClick={handleSaveName} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
-                      <Check className="w-4 h-4" />
+                    <button
+                      type="button"
+                      onClick={handleQuickNameSave}
+                      className="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium cursor-pointer"
+                      title="Save name"
+                    >
+                      <Check className="w-3.5 h-3.5" />
                     </button>
-                    <button type="button" onClick={() => setIsEditingName(false)} className="p-1 text-slate-400 hover:bg-slate-100 rounded">
-                      <Trash2 className="w-4 h-4" />
+                    <button
+                      type="button"
+                      onClick={() => setQuickEditNameOpen(false)}
+                      className="p-1.5 border border-slate-300 text-slate-600 rounded text-xs hover:bg-slate-100 cursor-pointer"
+                      title="Cancel"
+                    >
+                      ✕
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 group">
-                    <h1 className="text-lg font-bold text-slate-900 tracking-tight">{campaign.name}</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                      {campaign.name}
+                    </h1>
                     {!isArchived && (
                       <button
                         type="button"
-                        onClick={() => setIsEditingName(true)}
-                        className="p-1 rounded text-slate-600 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 border border-slate-300 transition-colors"
-                        title="Rename campaign"
+                        onClick={() => {
+                          setQuickNameValue(campaign.name);
+                          setQuickEditNameOpen(true);
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Edit campaign name"
                       >
-                        <Pencil className="w-3 h-3" />
+                        <Pencil className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
                 )}
 
-                {/* Delivery Status Badge */}
-                <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {campaign.delivery_status || (campaign.state === 'PAUSED' ? 'PAUSED' : 'DELIVERING')}
+                {/* Serving Status Badge */}
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${
+                    campaign.delivery_status === 'DELIVERING'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : campaign.delivery_status === 'OUT_OF_BUDGET'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : campaign.delivery_status === 'PAUSED'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  {campaign.delivery_status || campaign.state}
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 text-slate-500 text-[11px] mt-1">
-                <span>{campaign.campaign_type || 'SPONSORED_PRODUCTS'}</span>
+              {/* Sub-row metadata */}
+              <div className="flex flex-wrap items-center gap-2.5 text-slate-500 text-xs">
+                <span className="font-medium text-slate-700">Sponsored Products</span>
                 <span>•</span>
-                <span>{campaign.targeting_type} Targeting</span>
+                <span>{campaign.targeting_type === 'AUTO' ? 'Auto Targeting' : 'Manual Targeting'}</span>
                 <span>•</span>
                 <span>
-                  Strategy: <strong className="text-slate-800">{campaign.bidding_strategy || 'DOWN_ONLY'}</strong>
+                  Strategy:{' '}
+                  <strong className="text-slate-800">
+                    {campaign.bidding_strategy === 'DOWN_ONLY'
+                      ? 'Dynamic down only'
+                      : campaign.bidding_strategy === 'UP_AND_DOWN'
+                      ? 'Dynamic up and down'
+                      : 'Fixed bids'}
+                  </strong>
                 </span>
-                {campaign.portfolio_name && (
-                  <>
-                    <span>•</span>
-                    <span>Portfolio: <strong className="text-slate-800">{campaign.portfolio_name}</strong></span>
-                  </>
-                )}
                 <span>•</span>
                 <span>Start: {campaign.start_date}</span>
                 <span>•</span>
                 <span>End: {campaign.end_date || 'No end date'}</span>
               </div>
             </div>
-          </div>
 
-          {/* Right Header: Daily Budget (₹) Editor */}
-          <div className="flex items-center gap-3">
-            <div className="border border-border-dim rounded-md p-2 bg-slate-50/50 flex flex-col items-end">
-              <span className="text-[10px] uppercase text-slate-400 font-medium">Daily Budget</span>
-              {isEditingBudget ? (
-                <div className="flex items-center gap-1 mt-0.5">
-                  <MoneyInput
-                    value={budgetValue}
-                    onChange={(val) => setBudgetValue(val || 100)}
-                    symbol="₹"
-                    min={100}
-                    className="w-28 text-right"
-                  />
-                  <button type="button" onClick={handleSaveBudget} className="p-1 bg-primary text-white rounded text-[11px] font-medium">
-                    Save
-                  </button>
-                  <button type="button" onClick={() => setIsEditingBudget(false)} className="p-1 border rounded text-[11px]">
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-base font-bold text-slate-900 tabular-nums">
-                    {money(campaign.daily_budget)}
-                  </span>
-                  {!isArchived && (
+            {/* Right: Daily Budget Quick Box */}
+            <div className="flex items-center gap-3 self-start lg:self-center">
+              <div className="border border-slate-200 rounded-lg p-2.5 bg-slate-50/70 flex flex-col items-end min-w-[140px]">
+                <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
+                  Daily Budget
+                </span>
+                {quickEditBudgetOpen ? (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <MoneyInput
+                      value={quickBudgetValue}
+                      onChange={(val) => setQuickBudgetValue(val || 100)}
+                      symbol="₹"
+                      min={100}
+                      className="w-28 text-right text-xs py-1"
+                    />
                     <button
                       type="button"
-                      onClick={() => setIsEditingBudget(true)}
-                      className="p-1 text-slate-400 hover:text-primary rounded hover:bg-slate-100"
-                      title="Edit budget"
+                      onClick={handleQuickBudgetSave}
+                      className="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium cursor-pointer"
+                      title="Save budget"
                     >
-                      <Pencil className="w-3 h-3" />
+                      <Check className="w-3.5 h-3.5" />
                     </button>
-                  )}
-                </div>
-              )}
+                    <button
+                      type="button"
+                      onClick={() => setQuickEditBudgetOpen(false)}
+                      className="p-1.5 border border-slate-300 text-slate-600 rounded text-xs hover:bg-slate-100 cursor-pointer"
+                      title="Cancel"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-lg font-bold text-slate-900 tabular-nums">
+                      {money(campaign.daily_budget)}
+                    </span>
+                    {!isArchived && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuickBudgetValue(campaign.daily_budget);
+                          setQuickEditBudgetOpen(true);
+                        }}
+                        className="p-1 text-slate-400 hover:text-slate-700 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Edit daily budget"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Collapsible Chart */}
+      {/* KPI Cards (Q14 Standard) - only show selection highlights when chart is visible */}
+      <KpiCards
+        summary={summary}
+        totals={campaign}
+        loading={loading}
+        selectedChartMetrics={showChart ? chartMetrics : []}
+        onSelectMetric={showChart ? handleSelectMetric : undefined}
+      />
+
+      {/* Collapsible Dual-Axis Performance Chart */}
       {showChart && summary && (
         <PerformanceChart
           summary={summary}
           loading={loading}
-          granularity="daily"
-          onGranularityChange={() => {}}
+          granularity={granularity}
+          onGranularityChange={setGranularity}
+          selectedMetrics={chartMetrics}
+          onSelectMetric={handleSelectMetric}
+          endDate={dateRange.end}
         />
       )}
 
-      {/* KPI Ribbon */}
-      {summary && <KpiCards summary={summary} totals={campaign} loading={loading} />}
-
-      {/* 7 Amazon Ads Tabs */}
+      {/* Amazon Ads Tabs Container */}
       <div className="space-y-4">
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          items={tabItems}
-          size="md"
-        />
+        <Tabs value={activeTab} onChange={handleTabChange} items={tabItems} size="md" />
 
         {/* TAB 1: Ad Groups */}
         {activeTab === 'ad-groups' && (
-          <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-4 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border-dim">
+          <div className="bg-surface border border-border-dim rounded-lg shadow-2xs p-4 space-y-4">
+            {/* Filter toolbar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-primary" />
-                <span className="font-bold uppercase tracking-wider text-sm">
-                  Ad Groups ({num(adGroups.length)})
-                </span>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search ad groups..."
+                    value={adGroupSearch}
+                    onChange={(e) => setAdGroupSearch(e.target.value)}
+                    className="pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 w-48 sm:w-64"
+                  />
+                </div>
+
+                <select
+                  value={adGroupStatusFilter}
+                  onChange={(e) => setAdGroupStatusFilter(e.target.value as any)}
+                  className="px-2.5 py-1.5 text-xs border border-slate-300 rounded-md bg-white text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="ENABLED">Enabled</option>
+                  <option value="PAUSED">Paused</option>
+                </select>
               </div>
-              <button
-                type="button"
-                onClick={() => setCreateAdGroupOpen(true)}
-                disabled={isArchived}
-                className="px-3 py-1.5 bg-primary text-white rounded font-medium text-xs shadow-2xs hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Create Ad Group</span>
-              </button>
+
+              <div className="text-xs text-slate-500 font-medium">
+                Showing {filteredAdGroups.length} of {adGroups.length} ad groups
+              </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 border-b border-border-dim text-[10px] uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 px-3 w-12 text-center">State</th>
-                    <th className="py-2 px-3">Ad Group Name</th>
-                    <th className="py-2 px-3 text-right">Default Bid (₹)</th>
-                    <th className="py-2 px-3 text-right">Impressions</th>
-                    <th className="py-2 px-3 text-right">Clicks</th>
-                    <th className="py-2 px-3 text-right">Spend (₹)</th>
-                    <th className="py-2 px-3 text-right">Sales (₹)</th>
-                    <th className="py-2 px-3 text-right">Orders</th>
-                    <th className="py-2 px-3 text-right">ACOS</th>
-                    <th className="py-2 px-3 text-right">ROAS</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-dim">
-                  {adGroups.length === 0 ? (
+            {/* Ad Groups Table */}
+            {tabLoading ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                <RotateCw className="w-5 h-5 mx-auto mb-2 animate-spin text-slate-400" />
+                Loading ad groups...
+              </div>
+            ) : filteredAdGroups.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg">
+                No ad groups found for this campaign.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider">
                     <tr>
-                      <td colSpan={10} className="py-10 text-center text-slate-400">
-                        No ad groups found in this campaign.
-                      </td>
+                      <th className="px-3.5 py-2.5">Ad Group Name</th>
+                      <th className="px-3.5 py-2.5">Status</th>
+                      <th className="px-3.5 py-2.5 text-right">Default Bid</th>
+                      <th className="px-3.5 py-2.5 text-right">Products</th>
+                      <th className="px-3.5 py-2.5 text-right">Spend</th>
+                      <th className="px-3.5 py-2.5 text-right">Purchases</th>
+                      <th className="px-3.5 py-2.5 text-right">Sales</th>
+                      <th className="px-3.5 py-2.5 text-right">ROAS</th>
+                      <th className="px-3.5 py-2.5 text-right">Clicks</th>
                     </tr>
-                  ) : (
-                    adGroups.map((ag) => (
-                      <tr key={ag.id} className="hover:bg-slate-50/80">
-                        <td className="py-2 px-3 text-center">
-                          <Switch
-                            size="sm"
-                            checked={ag.state === 'ENABLED'}
-                            disabled={isArchived}
-                            onChange={async (val) => {
-                              const s = val ? 'ENABLED' : 'PAUSED';
-                              await patchAdGroup(ag.id, { state: s });
-                              loadTabData();
-                            }}
-                          />
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredAdGroups.map((ag) => (
+                      <tr key={ag.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-3.5 py-2.5 font-medium text-slate-900">
+                          <div className="flex items-center gap-1.5">
+                            <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{ag.name}</span>
+                          </div>
                         </td>
-                        <td className="py-2 px-3 font-semibold text-slate-900">{ag.name}</td>
-                        <td className="py-2 px-3 text-right font-medium tabular-nums">
+                        <td className="px-3.5 py-2.5">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              ag.state === 'ENABLED'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {ag.state}
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono font-medium">
                           {money(ag.default_bid)}
                         </td>
-                        <td className="py-2 px-3 text-right tabular-nums">{num(ag.impressions)}</td>
-                        <td className="py-2 px-3 text-right tabular-nums">{num(ag.clicks)}</td>
-                        <td className="py-2 px-3 text-right tabular-nums text-spend font-semibold">
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {num((ag as any).products_count ?? 1)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono font-medium text-slate-900">
                           {money(ag.spend)}
                         </td>
-                        <td className="py-2 px-3 text-right tabular-nums text-sales font-semibold">
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {num(ag.orders)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono font-medium text-emerald-700">
                           {money(ag.sales)}
                         </td>
-                        <td className="py-2 px-3 text-right tabular-nums">{num(ag.orders)}</td>
-                        <td className="py-2 px-3 text-right tabular-nums">{pct(ag.acos)}</td>
-                        <td className="py-2 px-3 text-right tabular-nums">{ratio(ag.roas)}</td>
+                        <td className="px-3.5 py-2.5 text-right font-mono font-medium">
+                          {ratio(ag.roas)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {num(ag.clicks)}
+                        </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50/80 border-t border-slate-200 font-semibold text-slate-900">
+                    <tr>
+                      <td colSpan={4} className="px-3.5 py-2 text-left">
+                        Total ({filteredAdGroups.length} Ad Groups)
+                      </td>
+                      <td className="px-3.5 py-2 text-right font-mono">
+                        {money(adGroupsTotals.spend)}
+                      </td>
+                      <td className="px-3.5 py-2 text-right font-mono">
+                        {num(adGroupsTotals.orders)}
+                      </td>
+                      <td className="px-3.5 py-2 text-right font-mono text-emerald-700">
+                        {money(adGroupsTotals.sales)}
+                      </td>
+                      <td className="px-3.5 py-2 text-right font-mono">
+                        {adGroupsTotals.spend > 0
+                          ? ratio(adGroupsTotals.sales / adGroupsTotals.spend)
+                          : '—'}
+                      </td>
+                      <td className="px-3.5 py-2 text-right font-mono">
+                        {num(adGroupsTotals.clicks)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB 2: Placements */}
+        {/* TAB 2: Placements (READ-ONLY per Q13 Approved) */}
         {activeTab === 'placements' && (
-          <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between pb-3 border-b border-border-dim gap-3">
+          <div className="bg-surface border border-border-dim rounded-lg shadow-2xs p-5 space-y-4">
+            {/* Read-Only Notice */}
+            <div className="flex items-start gap-3 p-3.5 bg-blue-50/80 border border-blue-200 rounded-lg text-blue-900 text-xs">
+              <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold uppercase tracking-wider text-sm block">
-                  Placement Bid Adjustments & Performance
-                </span>
-                <p className="text-slate-500 text-xs mt-0.5 font-sans">
-                  Configure real-time percentage multipliers for Top of search, Product pages, and Rest of search.
+                <p className="font-semibold text-blue-950">
+                  Placement Modifiers & Performance (Read-Only)
+                </p>
+                <p className="mt-0.5 text-blue-800 leading-relaxed">
+                  Modifiers and performance data are synchronized directly from the Amazon Advertising API. Placement modifier adjustments are currently in read-only mode.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleSavePlacements}
-                disabled={isArchived || savingPlacements}
-                className="px-4 py-1.5 bg-primary text-white rounded font-medium text-xs shadow-2xs hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-1.5"
-              >
-                {savingPlacements && <RotateCw className="w-3.5 h-3.5 animate-spin" />}
-                <span>Save Placement Modifiers</span>
-              </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 border-b border-border-dim text-[10px] uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2.5 px-3">Placement</th>
-                    <th className="py-2.5 px-3 text-right">Base Bid (₹)</th>
-                    <th className="py-2.5 px-3 text-right w-44">Bid Modifier (0–900%)</th>
-                    <th className="py-2.5 px-3 text-right">Max Auction CPC (₹)</th>
-                    <th className="py-2.5 px-3 text-right">Impressions</th>
-                    <th className="py-2.5 px-3 text-right">Clicks</th>
-                    <th className="py-2.5 px-3 text-right">CTR (%)</th>
-                    <th className="py-2.5 px-3 text-right">CPC (₹)</th>
-                    <th className="py-2.5 px-3 text-right">Spend (₹)</th>
-                    <th className="py-2.5 px-3 text-right">Sales (₹)</th>
-                    <th className="py-2.5 px-3 text-right">Orders</th>
-                    <th className="py-2.5 px-3 text-right">ACOS (%)</th>
-                    <th className="py-2.5 px-3 text-right">ROAS</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-dim">
-                  {[
-                    {
-                      key: 'TOP_OF_SEARCH',
-                      label: 'Top of search (first page)',
-                      val: topModifier,
-                      setter: setTopModifier,
-                    },
-                    {
-                      key: 'PRODUCT_PAGES',
-                      label: 'Product pages',
-                      val: pagesModifier,
-                      setter: setPagesModifier,
-                    },
-                    {
-                      key: 'REST_OF_SEARCH',
-                      label: 'Rest of search',
-                      val: restModifier,
-                      setter: setRestModifier,
-                    },
-                  ].map((row) => {
-                    const plcData = placements.find((p) => p.placement === row.key);
-                    const baseBid = plcData?.base_bid || 15.0;
-                    const maxEffective = calculateMaxEffectiveBid(
-                      baseBid,
-                      row.val,
-                      (campaign.bidding_strategy as BiddingStrategy) || 'DOWN_ONLY',
-                      row.key as any
-                    );
-
-                    return (
-                      <tr key={row.key} className="hover:bg-slate-50/80">
-                        <td className="py-3 px-3 font-semibold text-slate-900">{row.label}</td>
-                        <td className="py-3 px-3 text-right tabular-nums">{money(baseBid)}</td>
-                        <td className="py-3 px-3 text-right">
-                          <PercentInput
-                            value={row.val}
-                            onChange={(v) => row.setter(v ?? 0)}
-                            min={0}
-                            max={900}
-                            disabled={isArchived}
-                          />
+            {/* Placements Table */}
+            {tabLoading ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                <RotateCw className="w-5 h-5 mx-auto mb-2 animate-spin text-slate-400" />
+                Loading placement performance...
+              </div>
+            ) : placements.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg">
+                No placement metrics recorded for this campaign.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th className="px-3.5 py-2.5">Placement</th>
+                      <th className="px-3.5 py-2.5 text-right">Bid Modifier</th>
+                      <th className="px-3.5 py-2.5 text-right">Base Bid</th>
+                      <th className="px-3.5 py-2.5 text-right">Max Effective Bid</th>
+                      <th className="px-3.5 py-2.5 text-right">Impressions</th>
+                      <th className="px-3.5 py-2.5 text-right">Clicks</th>
+                      <th className="px-3.5 py-2.5 text-right">Spend</th>
+                      <th className="px-3.5 py-2.5 text-right">Purchases</th>
+                      <th className="px-3.5 py-2.5 text-right">Sales</th>
+                      <th className="px-3.5 py-2.5 text-right">CTR</th>
+                      <th className="px-3.5 py-2.5 text-right">CPC</th>
+                      <th className="px-3.5 py-2.5 text-right">ACOS</th>
+                      <th className="px-3.5 py-2.5 text-right">ROAS</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {placements.map((plc) => (
+                      <tr key={plc.placement} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-3.5 py-2.5 font-medium text-slate-900">
+                          {plc.label}
                         </td>
-                        <td className="py-3 px-3 text-right font-bold text-slate-900 tabular-nums">
-                          {money(maxEffective)}
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                              plc.modifier_pct > 0
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {plc.modifier_pct > 0 ? `+${plc.modifier_pct}%` : '0%'}
+                          </span>
                         </td>
-                        <td className="py-3 px-3 text-right tabular-nums">{num(plcData?.impressions ?? 0)}</td>
-                        <td className="py-3 px-3 text-right tabular-nums">{num(plcData?.clicks ?? 0)}</td>
-                        <td className="py-3 px-3 text-right tabular-nums">{pct(plcData?.ctr)}</td>
-                        <td className="py-3 px-3 text-right tabular-nums">{money(plcData?.cpc)}</td>
-                        <td className="py-3 px-3 text-right tabular-nums text-spend font-semibold">
-                          {money(plcData?.spend)}
+                        <td className="px-3.5 py-2.5 text-right font-mono font-medium">
+                          {money(plc.base_bid)}
                         </td>
-                        <td className="py-3 px-3 text-right tabular-nums text-sales font-semibold">
-                          {money(plcData?.sales)}
+                        <td className="px-3.5 py-2.5 text-right font-mono font-medium text-indigo-700">
+                          {money(plc.max_effective_bid)}
                         </td>
-                        <td className="py-3 px-3 text-right tabular-nums">{num(plcData?.orders ?? 0)}</td>
-                        <td className="py-3 px-3 text-right tabular-nums">
-                          {plcData?.acos_is_infinite ? (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-red-50 text-spend border border-red-200">
-                              INF
-                            </span>
-                          ) : (
-                            pct(plcData?.acos)
-                          )}
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {num(plc.impressions)}
                         </td>
-                        <td className="py-3 px-3 text-right tabular-nums">{ratio(plcData?.roas)}</td>
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {num(plc.clicks)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono font-medium text-slate-900">
+                          {money(plc.spend)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {num(plc.orders)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono font-medium text-emerald-700">
+                          {money(plc.sales)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {pct(plc.ctr)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {money(plc.cpc)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono">
+                          {pct(plc.acos)}
+                        </td>
+                        <td className="px-3.5 py-2.5 text-right font-mono font-semibold">
+                          {ratio(plc.roas)}
+                        </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
-        {/* TAB 3: Targeting */}
-        {activeTab === 'targeting' && (
-          <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-4 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border-dim">
-              <div>
-                <span className="font-bold uppercase tracking-wider text-sm block">
-                  Active Targeting ({num(targets.length)})
-                </span>
-                <span className="text-slate-500 text-xs">
-                  {campaign.targeting_type === 'AUTO'
-                    ? '4 Amazon Auto-Targeting Groups'
-                    : 'Manual Keywords and Competitor Product Targets'}
+        {/* TAB 3: Settings (Q6 / Amazon Ads Console Layout) */}
+        {activeTab === 'settings' && (
+          <div className="bg-surface border border-border-dim rounded-lg shadow-2xs p-6 space-y-6">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Campaign Settings</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage your Sponsored Products campaign configuration. All modifications are sent to Amazon Ads with audit history.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+              {/* Field 1: Campaign Name */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Campaign Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  disabled={isArchived || savingSettings}
+                  placeholder="Enter campaign name..."
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+                />
+                <span className="text-[11px] text-slate-400">
+                  Unique name to identify this campaign in Amazon Ads.
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setAddTargetModalOpen(true)}
-                disabled={isArchived}
-                className="px-3 py-1.5 bg-primary text-white rounded font-medium text-xs shadow-2xs hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Targets</span>
-              </button>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 border-b border-border-dim text-[10px] uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 px-3 w-12 text-center">State</th>
-                    <th className="py-2 px-3">Target Expression</th>
-                    <th className="py-2 px-3">Type</th>
-                    <th className="py-2 px-3 text-right">Current Bid (₹)</th>
-                    <th className="py-2 px-3 text-right">Suggested Bid (₹)</th>
-                    <th className="py-2 px-3 text-right">Impressions</th>
-                    <th className="py-2 px-3 text-right">Clicks</th>
-                    <th className="py-2 px-3 text-right">Spend (₹)</th>
-                    <th className="py-2 px-3 text-right">Sales (₹)</th>
-                    <th className="py-2 px-3 text-right">Orders</th>
-                    <th className="py-2 px-3 text-right">ACOS</th>
-                    <th className="py-2 px-3 text-right">ROAS</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-dim">
-                  {targets.length === 0 ? (
-                    <tr>
-                      <td colSpan={12} className="py-10 text-center text-slate-400">
-                        No targets currently configured.
-                      </td>
-                    </tr>
-                  ) : (
-                    targets.map((tgt) => (
-                      <tr key={tgt.id} className="hover:bg-slate-50/80">
-                        <td className="py-2 px-3 text-center">
-                          <Switch
-                            size="sm"
-                            checked={tgt.state === 'ENABLED'}
-                            disabled={isArchived}
-                            onChange={async (val) => {
-                              const s = val ? 'ENABLED' : 'PAUSED';
-                              await patchCampaignTarget(campaignId, tgt.id, { state: s });
-                              loadTabData();
-                            }}
-                          />
-                        </td>
-                        <td className="py-2 px-3 font-semibold text-slate-900">
-                          {tgt.expression_value || tgt.keyword_text || tgt.expression_type}
-                        </td>
-                        <td className="py-2 px-3 text-slate-500">
-                          {tgt.match_type || tgt.expression_type || tgt.target_type}
-                        </td>
-                        <td className="py-2 px-3 text-right font-medium tabular-nums">
-                          {money(tgt.bid)}
-                        </td>
-                        <td className="py-2 px-3 text-right">
-                          {tgt.suggested_bid_median ? (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                await patchCampaignTarget(campaignId, tgt.id, { bid: tgt.suggested_bid_median });
-                                loadTabData();
-                                showToast({
-                                  title: 'Applied suggested bid',
-                                  message: `Bid updated to ${money(tgt.suggested_bid_median)}`,
-                                  type: 'success',
-                                });
-                              }}
-                              className="text-primary hover:underline font-medium text-[11px]"
-                            >
-                              Apply {money(tgt.suggested_bid_median)}
-                            </button>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-                        <td className="py-2 px-3 text-right tabular-nums">{num(tgt.impressions ?? 0)}</td>
-                        <td className="py-2 px-3 text-right tabular-nums">{num(tgt.clicks ?? 0)}</td>
-                        <td className="py-2 px-3 text-right tabular-nums text-spend font-semibold">
-                          {money(tgt.spend)}
-                        </td>
-                        <td className="py-2 px-3 text-right tabular-nums text-sales font-semibold">
-                          {money(tgt.sales)}
-                        </td>
-                        <td className="py-2 px-3 text-right tabular-nums">{num(tgt.orders ?? 0)}</td>
-                        <td className="py-2 px-3 text-right tabular-nums">{pct(tgt.acos)}</td>
-                        <td className="py-2 px-3 text-right tabular-nums">{ratio(tgt.roas)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: Negative Targeting */}
-        {activeTab === 'negatives' && (
-          <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-4 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border-dim">
-              <div>
-                <span className="font-bold uppercase tracking-wider text-sm block">
-                  Negative Keywords & Brand Exclusions
-                </span>
-                <span className="text-slate-500 text-xs">
-                  Excluded search terms and competitor brands that waste ad budget
+              {/* Field 2: Status */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Campaign State
+                </label>
+                <select
+                  value={formState}
+                  onChange={(e) => setFormState(e.target.value as CampaignState)}
+                  disabled={isArchived || savingSettings}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-md bg-white text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 disabled:text-slate-400"
+                >
+                  <option value="ENABLED">Enabled</option>
+                  <option value="PAUSED">Paused</option>
+                  <option value="ARCHIVED">Archived</option>
+                </select>
+                <span className="text-[11px] text-slate-400">
+                  Active delivery state of the campaign.
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setAddNegModalOpen(true)}
-                disabled={isArchived}
-                className="px-3 py-1.5 bg-primary text-white rounded font-medium text-xs shadow-2xs hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Negative</span>
-              </button>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 border-b border-border-dim text-[10px] uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 px-3">Negative Expression</th>
-                    <th className="py-2 px-3">Type</th>
-                    <th className="py-2 px-3">Level</th>
-                    <th className="py-2 px-3 w-16 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-dim">
-                  {negatives.negative_keywords?.length === 0 &&
-                  negatives.negative_brands?.length === 0 &&
-                  negatives.items?.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-10 text-center text-slate-400">
-                        No negative targets configured.
-                      </td>
-                    </tr>
-                  ) : (
-                    <>
-                      {negatives.negative_keywords?.map((nk) => (
-                        <tr key={nk.id} className="hover:bg-slate-50/80">
-                          <td className="py-2 px-3 font-semibold text-slate-900">{nk.keyword_text}</td>
-                          <td className="py-2 px-3 text-slate-500">{nk.match_type}</td>
-                          <td className="py-2 px-3 text-slate-500">Campaign</td>
-                          <td className="py-2 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteNegativeItem(nk.id)}
-                              disabled={isArchived}
-                              className="text-slate-400 hover:text-spend p-1"
-                              title="Delete negative"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {negatives.negative_brands?.map((brand) => (
-                        <tr key={brand} className="hover:bg-slate-50/80">
-                          <td className="py-2 px-3 font-semibold text-slate-900">{brand}</td>
-                          <td className="py-2 px-3 text-slate-500">BRAND</td>
-                          <td className="py-2 px-3 text-slate-500">Campaign</td>
-                          <td className="py-2 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteNegativeItem(brand)}
-                              disabled={isArchived}
-                              className="text-slate-400 hover:text-spend p-1"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 5: Search Terms */}
-        {activeTab === 'search-terms' && (
-          <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-4 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border-dim">
-              <div>
-                <span className="font-bold uppercase tracking-wider text-sm block">
-                  Customer Search Terms Report ({num(searchTerms.length)})
-                </span>
-                <span className="text-slate-500 text-xs">
-                  Real search queries entered by shoppers that led to your ad being served
-                </span>
+              {/* Field 3: Daily Budget */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Daily Budget (₹) <span className="text-rose-500">*</span>
+                </label>
+                <MoneyInput
+                  value={formBudget}
+                  onChange={(val) => setFormBudget(val || 100)}
+                  symbol="₹"
+                  min={100}
+                  disabled={isArchived || savingSettings}
+                  className="w-full text-xs"
+                />
+                {formBudget < 500 ? (
+                  <div className="flex items-center gap-1.5 p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[11px] mt-1">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                    <span>
+                      Amazon allows lower budgets, but <strong>₹500+/day</strong> is recommended in India to collect statistically useful data.
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-slate-400">
+                    Minimum daily budget accepted by Amazon in India is ₹100.00.
+                  </span>
+                )}
               </div>
-            </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 border-b border-border-dim text-[10px] uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 px-3">Customer Search Term</th>
-                    <th className="py-2 px-3">Keyword / Target</th>
-                    <th className="py-2 px-3">Match</th>
-                    <th className="py-2 px-3 text-right">Impressions</th>
-                    <th className="py-2 px-3 text-right">Clicks</th>
-                    <th className="py-2 px-3 text-right">CTR (%)</th>
-                    <th className="py-2 px-3 text-right">CPC (₹)</th>
-                    <th className="py-2 px-3 text-right">Spend (₹)</th>
-                    <th className="py-2 px-3 text-right">Sales (₹)</th>
-                    <th className="py-2 px-3 text-right">Orders</th>
-                    <th className="py-2 px-3 text-right">ACOS</th>
-                    <th className="py-2 px-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-dim">
-                  {searchTerms.length === 0 ? (
-                    <tr>
-                      <td colSpan={12} className="py-10 text-center text-slate-400">
-                        No customer search terms recorded for this period.
-                      </td>
-                    </tr>
-                  ) : (
-                    searchTerms.map((st) => {
-                      const termCtr = st.ctr ?? (st.impressions > 0 ? (st.clicks / st.impressions) * 100 : 0);
-                      const termCpc = st.cpc ?? (st.clicks > 0 ? st.spend / st.clicks : 0);
-                      const termOrders = st.orders ?? 0;
-                      const termAcos = st.acos !== undefined ? st.acos : (st.sales > 0 ? (st.spend / st.sales) * 100 : null);
-                      const isInf = st.acos_is_infinite ?? (st.spend > 0 && (!st.sales || st.sales === 0));
-
-                      return (
-                        <tr key={st.id} className="hover:bg-slate-50/80">
-                          <td className="py-2 px-3 font-semibold text-slate-900">{st.search_term}</td>
-                          <td className="py-2 px-3 text-slate-600">{st.keyword_text || '—'}</td>
-                          <td className="py-2 px-3 text-slate-500">{st.match_type || 'AUTO'}</td>
-                          <td className="py-2 px-3 text-right tabular-nums">{num(st.impressions)}</td>
-                          <td className="py-2 px-3 text-right tabular-nums">{num(st.clicks)}</td>
-                          <td className="py-2 px-3 text-right tabular-nums">{pct(termCtr)}</td>
-                          <td className="py-2 px-3 text-right tabular-nums">{money(termCpc)}</td>
-                          <td className="py-2 px-3 text-right tabular-nums text-spend font-semibold">
-                            {money(st.spend)}
-                          </td>
-                          <td className="py-2 px-3 text-right tabular-nums text-sales font-semibold">
-                            {money(st.sales)}
-                          </td>
-                          <td className="py-2 px-3 text-right tabular-nums">{num(termOrders)}</td>
-                          <td className="py-2 px-3 text-right tabular-nums">
-                            {isInf ? (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono bg-red-50 text-spend border border-red-200">
-                                INF
-                              </span>
-                            ) : (
-                              pct(termAcos)
-                            )}
-                          </td>
-                          <td className="py-2 px-3 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setHarvestTerm(st);
-                                  setHarvestBid(termCpc ? Math.max(1.0, Math.round(termCpc * 1.1 * 100) / 100) : 15);
-                                  setHarvestModalOpen(true);
-                                }}
-                                className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-medium text-[11px]"
-                                title="Promote search term into positive keyword"
-                              >
-                                Harvest
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setNegateTerm(st);
-                                  setNegateModalOpen(true);
-                                }}
-                                className="px-2 py-0.5 rounded bg-red-50 text-spend hover:bg-red-100 border border-red-200 font-medium text-[11px]"
-                                title="Add as negative keyword"
-                              >
-                                Negate
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 6: Budget Rules */}
-        {activeTab === 'budget-rules' && (
-          <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-border-dim">
-              <div>
-                <span className="font-bold uppercase tracking-wider text-sm block">
-                  Budget Rules & Automated Schedules
-                </span>
-                <span className="text-slate-500 text-xs">
-                  Active schedules, dayparting, and recommendations for {campaign.name}
-                </span>
-              </div>
-              <Link
-                href={`/recommendations?campaign_id=${campaignId}`}
-                className="px-3 py-1.5 bg-primary text-white rounded font-medium text-xs hover:bg-indigo-700 inline-flex items-center gap-1.5"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>View Recommendations</span>
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded border border-border-dim bg-slate-50/50 space-y-2">
-                <span className="font-bold text-slate-800 text-xs block">Active Daily Schedule</span>
-                <p className="text-slate-600 text-xs leading-relaxed font-sans">
-                  Current budget: <strong className="text-slate-900">{money(campaign.daily_budget)}</strong> per day.
-                  Automated dayparting multiplier active: <strong>1.0x (Standard)</strong>.
-                </p>
-                <div className="pt-2">
-                  <span className="text-[11px] text-slate-400">Timezone: Asia/Kolkata (IST)</span>
+              {/* Field 4: Schedule */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Schedule (Start & End Date)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium uppercase">Start Date</span>
+                    <DatePicker
+                      value={formStartDate}
+                      onChange={setFormStartDate}
+                      disabled={isArchived || savingSettings}
+                      placeholder="Start date"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 font-medium uppercase">End Date</span>
+                    <DatePicker
+                      value={formNoEndDate ? null : formEndDate}
+                      onChange={(d) => {
+                        setFormEndDate(d);
+                        setFormNoEndDate(false);
+                      }}
+                      disabled={isArchived || formNoEndDate || savingSettings}
+                      placeholder="No end date"
+                      minDate={formStartDate}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="no-end-date"
+                    checked={formNoEndDate}
+                    onChange={(e) => {
+                      setFormNoEndDate(e.target.checked);
+                      if (e.target.checked) setFormEndDate(null);
+                    }}
+                    disabled={isArchived || savingSettings}
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <label htmlFor="no-end-date" className="text-xs text-slate-600 select-none cursor-pointer">
+                    No end date (run continuously)
+                  </label>
                 </div>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* TAB 7: History */}
-        {activeTab === 'history' && (
-          <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-4 space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-border-dim">
-              <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-primary" />
-                <span className="font-bold uppercase tracking-wider text-sm">
-                  Campaign Audit Log ({num(historyItems.length)})
-                </span>
+            {/* Field 5: Bidding Strategy */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <label className="block text-xs font-semibold text-slate-700">
+                Campaign Bidding Strategy
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Option 1: Down Only */}
+                <label
+                  className={`p-3.5 border rounded-lg cursor-pointer transition-all ${
+                    formStrategy === 'DOWN_ONLY'
+                      ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="strategy"
+                      value="DOWN_ONLY"
+                      checked={formStrategy === 'DOWN_ONLY'}
+                      onChange={() => setFormStrategy('DOWN_ONLY')}
+                      disabled={isArchived || savingSettings}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs font-bold text-slate-900">
+                      Dynamic bids - down only
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                    Amazon will lower your bids in real time when your ad may be less likely to convert to a sale.
+                  </p>
+                </label>
+
+                {/* Option 2: Up and Down */}
+                <label
+                  className={`p-3.5 border rounded-lg cursor-pointer transition-all ${
+                    formStrategy === 'UP_AND_DOWN'
+                      ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="strategy"
+                      value="UP_AND_DOWN"
+                      checked={formStrategy === 'UP_AND_DOWN'}
+                      onChange={() => setFormStrategy('UP_AND_DOWN')}
+                      disabled={isArchived || savingSettings}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs font-bold text-slate-900">
+                      Dynamic bids - up and down
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                    Amazon will raise bids up to 100% for top of search and 50% for other placements when likely to convert, and lower when less likely.
+                  </p>
+                </label>
+
+                {/* Option 3: Fixed */}
+                <label
+                  className={`p-3.5 border rounded-lg cursor-pointer transition-all ${
+                    formStrategy === 'FIXED'
+                      ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600'
+                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="strategy"
+                      value="FIXED"
+                      checked={formStrategy === 'FIXED'}
+                      onChange={() => setFormStrategy('FIXED')}
+                      disabled={isArchived || savingSettings}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-xs font-bold text-slate-900">
+                      Fixed bids
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                    Amazon will use your exact bid and any manual placement adjustments you set, and won&apos;t change bids automatically.
+                  </p>
+                </label>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 border-b border-border-dim text-[10px] uppercase text-slate-500">
-                  <tr>
-                    <th className="py-2 px-3 w-44">Date & Time (IST)</th>
-                    <th className="py-2 px-3">Event</th>
-                    <th className="py-2 px-3">Description</th>
-                    <th className="py-2 px-3 text-right">Previous</th>
-                    <th className="py-2 px-3 text-right">New Value</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-dim">
-                  {historyItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-10 text-center text-slate-400">
-                        No audit history recorded yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    historyItems.map((h) => (
-                      <tr key={h.id} className="hover:bg-slate-50/80">
-                        <td className="py-2 px-3 text-slate-500 tabular-nums">
-                          {h.created_at ? new Date(h.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}
-                        </td>
-                        <td className="py-2 px-3 font-semibold text-slate-900">{h.event_title || h.event_type}</td>
-                        <td className="py-2 px-3 text-slate-700">{h.description}</td>
-                        <td className="py-2 px-3 text-right text-slate-500 tabular-nums">
-                          {h.previous_value || '—'}
-                        </td>
-                        <td className="py-2 px-3 text-right font-medium text-slate-900 tabular-nums">
-                          {h.new_value || '—'}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            {/* Bottom Actions Bar */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleSettingsReset}
+                disabled={isArchived || savingSettings}
+                className="px-4 py-2 border border-slate-300 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={handleSettingsSave}
+                disabled={isArchived || savingSettings}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold shadow-xs transition-colors disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                {savingSettings && <RotateCw className="w-3.5 h-3.5 animate-spin" />}
+                Save to Amazon Ads
+              </button>
             </div>
+          </div>
+        )}
+
+        {/* TAB 4: History */}
+        {activeTab === 'history' && (
+          <div className="bg-surface border border-border-dim rounded-lg shadow-2xs p-5 space-y-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Campaign History</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Audit trail of all modifications made to this campaign, with before and after snapshots.
+              </p>
+            </div>
+
+            {tabLoading ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                <RotateCw className="w-5 h-5 mx-auto mb-2 animate-spin text-slate-400" />
+                Loading audit history...
+              </div>
+            ) : historyItems.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg">
+                No audit events recorded yet for this campaign.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {historyItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 border border-slate-200 rounded-lg bg-white hover:border-slate-300 transition-colors space-y-2"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-slate-900">
+                          {item.event_title}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 uppercase">
+                          {item.event_type}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {item.created_at
+                          ? new Date(item.created_at).toLocaleString('en-IN', {
+                              timeZone: 'Asia/Kolkata',
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })
+                          : '—'}
+                      </span>
+                    </div>
+
+                    {item.description && (
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        {item.description}
+                      </p>
+                    )}
+
+                    {(item.previous_value || item.new_value) && (
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] pt-1">
+                        {item.previous_value && (
+                          <div className="px-2 py-0.5 bg-rose-50 border border-rose-200 rounded text-rose-800">
+                            <span className="text-slate-400 mr-1">Before:</span>
+                            <span className="font-mono">{item.previous_value}</span>
+                          </div>
+                        )}
+                        {item.previous_value && item.new_value && (
+                          <span className="text-slate-400">→</span>
+                        )}
+                        {item.new_value && (
+                          <div className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded text-emerald-800">
+                            <span className="text-slate-400 mr-1">After:</span>
+                            <span className="font-mono">{item.new_value}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Harvest Modal */}
-      <Modal
-        open={harvestModalOpen}
-        onClose={() => setHarvestModalOpen(false)}
-        title={`Harvest Search Term: "${harvestTerm?.search_term}"`}
-      >
-        <div className="space-y-4 font-mono text-xs">
-          <p className="text-slate-600 font-sans">
-            Promote this converting search query into a positive keyword in this campaign.
-          </p>
-
-          <div>
-            <label className="block text-[11px] uppercase text-slate-500 mb-1">Match Type</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['EXACT', 'PHRASE', 'BROAD'] as const).map((mt) => (
-                <button
-                  key={mt}
-                  type="button"
-                  onClick={() => setHarvestMatchType(mt)}
-                  className={`p-2 rounded border text-xs font-semibold ${
-                    harvestMatchType === mt ? 'border-primary bg-primary/10 text-primary' : 'border-border-dim'
-                  }`}
-                >
-                  {mt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase text-slate-500 mb-1">Keyword Bid (₹)</label>
-            <MoneyInput
-              value={harvestBid}
-              onChange={(val) => setHarvestBid(val || 15)}
-              symbol="₹"
-              min={1}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-border-dim">
-            <button
-              type="button"
-              onClick={() => setHarvestModalOpen(false)}
-              className="px-3 py-1.5 border border-border-dim rounded hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleExecuteHarvest}
-              className="px-4 py-1.5 bg-primary text-white rounded font-medium hover:bg-indigo-700"
-            >
-              Add Keyword
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Negate Modal */}
-      <Modal
-        open={negateModalOpen}
-        onClose={() => setNegateModalOpen(false)}
-        title={`Negate Search Term: "${negateTerm?.search_term}"`}
-      >
-        <div className="space-y-4 font-mono text-xs">
-          <p className="text-slate-600 font-sans">
-            Exclude this query to block ad delivery and prevent wasted spend.
-          </p>
-
-          <div>
-            <label className="block text-[11px] uppercase text-slate-500 mb-1">Match Type</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['NEGATIVE_EXACT', 'NEGATIVE_PHRASE'] as const).map((mt) => (
-                <button
-                  key={mt}
-                  type="button"
-                  onClick={() => setNegateMatchType(mt)}
-                  className={`p-2 rounded border text-xs font-semibold ${
-                    negateMatchType === mt ? 'border-primary bg-primary/10 text-primary' : 'border-border-dim'
-                  }`}
-                >
-                  {mt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase text-slate-500 mb-1">Targeting Level</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['CAMPAIGN', 'AD_GROUP'] as const).map((lvl) => (
-                <button
-                  key={lvl}
-                  type="button"
-                  onClick={() => setNegateLevel(lvl)}
-                  className={`p-2 rounded border text-xs font-semibold ${
-                    negateLevel === lvl ? 'border-primary bg-primary/10 text-primary' : 'border-border-dim'
-                  }`}
-                >
-                  {lvl}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-border-dim">
-            <button
-              type="button"
-              onClick={() => setNegateModalOpen(false)}
-              className="px-3 py-1.5 border border-border-dim rounded hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleExecuteNegate}
-              className="px-4 py-1.5 bg-spend text-white rounded font-medium hover:bg-red-700"
-            >
-              Exclude Query
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Add Negative Keyword Modal */}
-      <Modal
-        open={addNegModalOpen}
-        onClose={() => setAddNegModalOpen(false)}
-        title="Add Negative Keyword"
-      >
-        <div className="space-y-4 font-mono text-xs">
-          <div>
-            <label className="block text-[11px] uppercase text-slate-500 mb-1">Negative Keyword Text</label>
-            <input
-              type="text"
-              autoFocus
-              value={newNegText}
-              onChange={(e) => setNewNegText(e.target.value)}
-              placeholder="e.g. cheap running shoes"
-              className="w-full px-2.5 py-1.5 border border-border-dim rounded"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase text-slate-500 mb-1">Match Type</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['NEGATIVE_EXACT', 'NEGATIVE_PHRASE'] as const).map((mt) => (
-                <button
-                  key={mt}
-                  type="button"
-                  onClick={() => setNewNegMatch(mt)}
-                  className={`p-2 rounded border text-xs font-semibold ${
-                    newNegMatch === mt ? 'border-primary bg-primary/10 text-primary' : 'border-border-dim'
-                  }`}
-                >
-                  {mt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-border-dim">
-            <button
-              type="button"
-              onClick={() => setAddNegModalOpen(false)}
-              className="px-3 py-1.5 border border-border-dim rounded hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleAddNegativeKeyword}
-              className="px-4 py-1.5 bg-primary text-white rounded font-medium hover:bg-indigo-700"
-            >
-              Add Negative
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Create Ad Group Modal */}
-      <Modal
-        open={createAdGroupOpen}
-        onClose={() => setCreateAdGroupOpen(false)}
-        title="Create Ad Group"
-      >
-        <div className="space-y-4 font-mono text-xs">
-          <div>
-            <label className="block text-[11px] uppercase text-slate-500 mb-1">Ad Group Name</label>
-            <input
-              type="text"
-              autoFocus
-              value={newAdGroupName}
-              onChange={(e) => setNewAdGroupName(e.target.value)}
-              placeholder="e.g. Running Shoes - Exact"
-              className="w-full px-2.5 py-1.5 border border-border-dim rounded"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[11px] uppercase text-slate-500 mb-1">Default Bid (₹)</label>
-            <MoneyInput
-              value={newAdGroupBid}
-              onChange={(v) => setNewAdGroupBid(v || 15)}
-              symbol="₹"
-              min={1}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2 border-t border-border-dim">
-            <button
-              type="button"
-              onClick={() => setCreateAdGroupOpen(false)}
-              className="px-3 py-1.5 border border-border-dim rounded hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                const name = newAdGroupName.trim();
-                if (!name) return;
-                try {
-                  await patchCampaign(campaignId, {
-                    // create ad group in backend
-                  });
-                  showToast({ title: 'Ad group created', message: `Created "${name}" with bid ${money(newAdGroupBid)}`, type: 'success' });
-                  setCreateAdGroupOpen(false);
-                  setNewAdGroupName('');
-                  loadTabData();
-                } catch (err: any) {
-                  showToast({ title: 'Creation failed', message: err?.message, type: 'error' });
-                }
-              }}
-              className="px-4 py-1.5 bg-primary text-white rounded font-medium hover:bg-indigo-700"
-            >
-              Create
-            </button>
-          </div>
-        </div>
-      </Modal>
+      {/* Confirmation Dialog (Q6 Approved) */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel={confirmDialog.confirmLabel}
+        variant={confirmDialog.variant}
+        onCancel={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+        onConfirm={confirmDialog.onConfirm}
+      />
     </div>
   );
 }
@@ -1491,8 +1260,8 @@ export default function CampaignDetailPage(props: PageProps) {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-graph-paper-faint p-6 flex items-center justify-center font-mono text-xs text-slate-400">
-          Loading campaign drill-down...
+        <div className="p-8 text-center text-slate-400 text-sm">
+          Loading campaign view...
         </div>
       }
     >

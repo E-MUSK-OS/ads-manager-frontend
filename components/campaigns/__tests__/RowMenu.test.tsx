@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RowMenu } from "../RowMenu";
 
@@ -11,32 +11,7 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-vi.mock("@/components/ui/ConfirmDialog", () => ({
-  ConfirmDialog: ({
-    open,
-    title,
-    onConfirm,
-    onCancel,
-  }: {
-    open: boolean;
-    title: string;
-    onConfirm: () => void;
-    onCancel: () => void;
-  }) =>
-    open ? (
-      <div data-testid="confirm-dialog">
-        <span>{title}</span>
-        <button type="button" onClick={onConfirm}>
-          Confirm Action
-        </button>
-        <button type="button" onClick={onCancel}>
-          Cancel Action
-        </button>
-      </div>
-    ) : null,
-}));
-
-describe("RowMenu (Three-Dot Campaign Menu)", () => {
+describe("RowMenu (Three-Dot Campaign Menu - Exactly 3 Actions)", () => {
   const baseCampaign = {
     id: "cmp-101",
     name: "SP - Flagship Exact",
@@ -48,14 +23,14 @@ describe("RowMenu (Three-Dot Campaign Menu)", () => {
     vi.clearAllMocks();
   });
 
-  it("opens and closes the menu when clicking the three-dot trigger without bubbling to the parent row", () => {
+  it("opens and closes the menu when clicking trigger without bubbling to parent row", () => {
     const onRowClick = vi.fn();
     render(
       <table>
         <tbody>
           <tr onClick={onRowClick}>
             <td>
-              <RowMenu campaign={baseCampaign} onStatusChange={vi.fn()} />
+              <RowMenu campaign={baseCampaign} />
             </td>
           </tr>
         </tbody>
@@ -65,54 +40,45 @@ describe("RowMenu (Three-Dot Campaign Menu)", () => {
     const trigger = screen.getByTestId("row-menu-trigger-cmp-101");
     fireEvent.click(trigger);
 
-    expect(screen.getByText("View details")).toBeDefined();
-    expect(screen.getByText("Pause campaign")).toBeDefined();
+    // Exactly the 3 required options
+    expect(screen.getByText("Bid Threshold")).toBeDefined();
+    expect(screen.getByText("View Campaign")).toBeDefined();
+    expect(screen.getByText("Hourly Tracking")).toBeDefined();
     expect(onRowClick).not.toHaveBeenCalled();
 
-    // Clicking trigger again closes the menu cleanly
+    // Closing menu
     fireEvent.click(trigger);
-    expect(screen.queryByText("View details")).toBeNull();
+    expect(screen.queryByText("Bid Threshold")).toBeNull();
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
-  it("displays 'Enable campaign' when status is PAUSED and hides Archive when ARCHIVED", () => {
-    const { rerender } = render(
-      <RowMenu
-        campaign={{ ...baseCampaign, status: "PAUSED" }}
-        onStatusChange={vi.fn()}
-      />
-    );
+  it("navigates to /campaigns/[id] when View Campaign is clicked", () => {
+    render(<RowMenu campaign={baseCampaign} />);
 
     fireEvent.click(screen.getByTestId("row-menu-trigger-cmp-101"));
-    expect(screen.getByText("Enable campaign")).toBeDefined();
-    expect(screen.queryByText("Pause campaign")).toBeNull();
+    fireEvent.click(screen.getByText("View Campaign"));
 
-    // Rerender as ARCHIVED
-    rerender(
-      <RowMenu
-        campaign={{ ...baseCampaign, status: "ARCHIVED" }}
-        onStatusChange={vi.fn()}
-      />
-    );
-    expect(screen.queryByText("Archive campaign")).toBeNull();
+    expect(pushMock).toHaveBeenCalledWith("/campaigns/cmp-101");
   });
 
-  it("keeps ConfirmDialog mounted after closing the popover when Archive is clicked", async () => {
-    const onStatusChange = vi.fn().mockResolvedValue(undefined);
+  it("triggers callbacks for Bid Threshold and Hourly Tracking", () => {
+    const onBidThreshold = vi.fn();
+    const onHourlyTracking = vi.fn();
+
     render(
-      <RowMenu campaign={baseCampaign} onStatusChange={onStatusChange} />
+      <RowMenu
+        campaign={baseCampaign}
+        onBidThreshold={onBidThreshold}
+        onHourlyTracking={onHourlyTracking}
+      />
     );
 
     fireEvent.click(screen.getByTestId("row-menu-trigger-cmp-101"));
-    fireEvent.click(screen.getByText("Archive campaign"));
+    fireEvent.click(screen.getByText("Bid Threshold"));
+    expect(onBidThreshold).toHaveBeenCalledWith(baseCampaign);
 
-    // Menu closes, but ConfirmDialog remains mounted
-    expect(screen.queryByText("View details")).toBeNull();
-    expect(screen.getByTestId("confirm-dialog")).toBeDefined();
-
-    fireEvent.click(screen.getByText("Confirm Action"));
-    await waitFor(() => {
-      expect(onStatusChange).toHaveBeenCalledWith("cmp-101", "ARCHIVED");
-    });
+    fireEvent.click(screen.getByTestId("row-menu-trigger-cmp-101"));
+    fireEvent.click(screen.getByText("Hourly Tracking"));
+    expect(onHourlyTracking).toHaveBeenCalledWith(baseCampaign);
   });
 });

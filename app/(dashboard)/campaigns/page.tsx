@@ -10,6 +10,7 @@ import {
   Target,
   AlertTriangle,
   AlertCircle,
+  Info,
 } from 'lucide-react';
 import { useCampaignList } from '@/components/campaigns/useCampaignList';
 import { DateRangePicker } from '@/components/campaigns/DateRangePicker';
@@ -46,6 +47,8 @@ function CampaignsPageContent() {
     setSortDir,
     dateRange,
     setDateRange,
+    granularity,
+    setGranularity,
     filters,
     setFilters,
     updateFilters,
@@ -69,15 +72,19 @@ function CampaignsPageContent() {
     } catch {}
   }, []);
 
-  const [granularity, setGranularity] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [chartMetrics, setChartMetrics] = useState<[MetricKey, MetricKey]>(['spend', 'sales']);
+  const [chartMetrics, setChartMetrics] = useState<MetricKey[]>(['spend', 'sales']);
 
   const handleSelectMetric = (metric: MetricKey) => {
     setChartMetrics((prev) => {
-      if (prev[0] === metric) return prev;
-      if (prev[1] === metric) return [metric, prev[0]];
-      return [prev[0], metric];
+      if (prev.includes(metric)) {
+        if (prev.length <= 1) return prev; // min 1
+        return prev.filter((m) => m !== metric);
+      }
+      if (prev.length >= 4) {
+        return [...prev.slice(1), metric]; // max 4 per Q14
+      }
+      return [...prev, metric];
     });
   };
 
@@ -99,7 +106,11 @@ function CampaignsPageContent() {
     ARCHIVED: campaigns.filter((c) => c.state === 'ARCHIVED').length,
   };
 
-  const activeStatus = filters.delivery_status || (filters.status && filters.status[0]) || 'ALL';
+  const activeStatus =
+    filters.delivery_status ||
+    (filters.status && filters.status.length === 1 && (filters.status[0] === 'PAUSED' || filters.status[0] === 'ARCHIVED')
+      ? filters.status[0]
+      : 'ALL');
 
   const handleStatusPillClick = (statusKey: string) => {
     if (statusKey === 'ALL') {
@@ -200,10 +211,13 @@ function CampaignsPageContent() {
       {/* Top Header & Portfolio Rail */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-baseline gap-2">
+          <div className="flex flex-wrap items-baseline gap-2">
             <h1 className="text-xl font-bold font-mono tracking-tight text-slate-900 uppercase">
               Campaigns
             </h1>
+            <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200 uppercase">
+              Sponsored Products (SP)
+            </span>
             <span className="text-xs font-mono text-slate-500">
               ({num(totalCount)} {totalCount === 1 ? 'campaign' : 'campaigns'})
             </span>
@@ -211,6 +225,20 @@ function CampaignsPageContent() {
           <p className="text-xs text-slate-500 font-mono mt-0.5">
             Amazon Ads India (Amazon.in) Campaign Manager — Sponsored Products, Brands & Display
           </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            {account?.last_synced_at ? (
+              <span className="text-[11px] font-mono text-slate-500">
+                Data as of {new Date(account.last_synced_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' })} IST
+              </span>
+            ) : (
+              <span className="text-[11px] font-mono text-slate-400">Not synced yet</span>
+            )}
+            <span className="text-slate-300 hidden sm:inline">•</span>
+            <span className="text-[11px] font-mono text-slate-500 flex items-center gap-1">
+              <Info className="w-3 h-3 text-slate-400 shrink-0" />
+              Amazon Ads data may take 24–48 hours to fully attribute. Recent days are subject to change.
+            </span>
+          </div>
         </div>
 
         {/* Header Actions */}
@@ -218,15 +246,16 @@ function CampaignsPageContent() {
           {/* Date Range Picker */}
           <DateRangePicker value={dateRange} onChange={setDateRange} />
 
-          {/* Refresh / Sync Button */}
+          {/* Sync Now Button */}
           <button
             type="button"
             onClick={handleSync}
             disabled={syncing || !account}
-            className="p-2 rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800 hover:text-slate-950 disabled:opacity-50"
-            title="Sync account metrics"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-100 transition-colors shadow-2xs text-slate-800 hover:text-slate-950 disabled:opacity-50 font-mono text-xs font-semibold"
+            title="Sync account metrics with Amazon Ads"
           >
-            <RotateCw className={`w-4 h-4 ${syncing ? 'animate-spin text-indigo-600' : ''}`} />
+            <RotateCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-indigo-600' : ''}`} />
+            <span>{syncing ? 'Syncing with Amazon Ads...' : 'Sync Now'}</span>
           </button>
 
           {/* Show / Hide Chart Toggle */}
@@ -320,13 +349,13 @@ function CampaignsPageContent() {
       {/* Filter Bar */}
       <FilterBar filters={filters} onChange={setFilters} />
 
-      {/* 8-Card Interactive KPI Ribbon */}
+      {/* 8-Card Interactive KPI Ribbon - only show selection highlights when chart is visible */}
       <KpiCards
         summary={summaryData}
         totals={totals}
         loading={loading}
-        selectedChartMetrics={chartMetrics}
-        onSelectMetric={handleSelectMetric}
+        selectedChartMetrics={showChart ? chartMetrics : []}
+        onSelectMetric={showChart ? handleSelectMetric : undefined}
       />
 
       {/* Collapsible Dual-Axis Performance Chart */}
@@ -337,6 +366,9 @@ function CampaignsPageContent() {
           granularity={granularity}
           onGranularityChange={setGranularity}
           selectedMetrics={chartMetrics}
+          onSelectMetric={handleSelectMetric}
+          endDate={dateRange.end}
+          meta={meta}
         />
       )}
 
@@ -353,6 +385,7 @@ function CampaignsPageContent() {
         sortField={sortField}
         sortDir={sortDir}
         filters={filters}
+        dateRange={dateRange}
         selectedIds={selectedIds}
         onSelectedIdsChange={setSelectedIds}
         onPageChange={setPage}

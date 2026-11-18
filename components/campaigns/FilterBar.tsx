@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Filter, X, Plus, ChevronDown, Bookmark, Check } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Filter, X, ChevronDown, Bookmark } from 'lucide-react';
 import { Popover } from '@/components/ui/Popover';
 import type { FilterState } from './useCampaignList';
+import { getSavedFilters, createSavedFilter, deleteSavedFilter } from '@/lib/api-client';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -11,8 +12,8 @@ interface FilterBarProps {
   onFilterPreset?: (preset: string) => void;
 }
 
-interface SavedFilter {
-  id: string;
+interface SavedFilterItem {
+  id: string | number;
   name: string;
   filters: FilterState;
 }
@@ -23,10 +24,19 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
   const [activePopover, setActivePopover] = useState<string | null>(null);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
-  const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
+  const [savedFilters, setSavedFilters] = useState<SavedFilterItem[]>([]);
 
-  // Load saved filters
-  useEffect(() => {
+  // Load saved filters from backend with local fallback
+  const loadFilters = useCallback(async () => {
+    try {
+      const serverFilters = await getSavedFilters();
+      if (Array.isArray(serverFilters) && serverFilters.length > 0) {
+        setSavedFilters(serverFilters as unknown as SavedFilterItem[]);
+        return;
+      }
+    } catch {
+      // ignore
+    }
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) setSavedFilters(JSON.parse(stored));
@@ -35,37 +45,55 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
     }
   }, []);
 
-  const handleSaveFilter = () => {
-    if (!saveName.trim()) return;
-    const newSaved: SavedFilter = {
-      id: Date.now().toString(),
-      name: saveName.trim(),
-      filters: { ...filters },
-    };
-    const updated = [...savedFilters, newSaved];
-    setSavedFilters(updated);
+  useEffect(() => {
+    loadFilters();
+  }, [loadFilters]);
+
+  const handleSaveFilter = async () => {
+    const trimmed = saveName.trim();
+    if (!trimmed) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      const created = await createSavedFilter({ name: trimmed, filters: { ...filters } });
+      setSavedFilters((prev) => [created as unknown as SavedFilterItem, ...prev]);
     } catch {
-      // ignore
+      // local fallback
+      const newSaved: SavedFilterItem = {
+        id: Date.now().toString(),
+        name: trimmed,
+        filters: { ...filters },
+      };
+      setSavedFilters((prev) => {
+        const updated = [newSaved, ...prev];
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
     }
     setSaveName('');
     setSaveModalOpen(false);
   };
 
-  const handleApplySavedFilter = (sf: SavedFilter) => {
+  const handleApplySavedFilter = (sf: SavedFilterItem) => {
     onChange(sf.filters);
   };
 
-  const handleDeleteSavedFilter = (id: string, e: React.MouseEvent) => {
+  const handleDeleteSavedFilter = async (id: string | number, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = savedFilters.filter((f) => f.id !== id);
-    setSavedFilters(updated);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      if (typeof id === 'number') {
+        await deleteSavedFilter(id);
+      }
     } catch {
       // ignore
     }
+    setSavedFilters((prev) => {
+      const updated = prev.filter((f) => f.id !== id);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
   };
 
   const clearAll = () => {
@@ -77,29 +105,8 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
     });
   };
 
-  // Quick filters
-  const applyQuickFilter = (type: 'leak' | 'scale' | 'budget_limited') => {
-    if (type === 'leak') {
-      onChange({
-        ...filters,
-        health: filters.health.includes('BUDGET_LEAK')
-          ? filters.health.filter((h) => h !== 'BUDGET_LEAK')
-          : [...filters.health, 'BUDGET_LEAK'],
-      });
-    } else if (type === 'scale') {
-      onChange({
-        ...filters,
-        health: filters.health.includes('SCALE')
-          ? filters.health.filter((h) => h !== 'SCALE')
-          : [...filters.health, 'SCALE'],
-      });
-    } else if (type === 'budget_limited') {
-      onChange({
-        ...filters,
-        min_utilization: filters.min_utilization === 90 ? undefined : 90,
-      });
-    }
-  };
+  // Quick filter for bleeding campaigns (Spend > 0, Sales = 0)
+  const isBleeding = filters.min_spend === 1 && filters.max_orders === 0;
 
   // Helper for numeric chip
   const renderNumericChip = (
@@ -124,7 +131,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
     return (
       <span
         key={label}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono bg-surface border border-border-dim text-text-main shadow-2xs"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono bg-white border border-slate-300 text-slate-800 shadow-2xs"
       >
         <span>{text}</span>
         <button
@@ -139,14 +146,14 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
   };
 
   // Helper for array chip
-  const renderArrayChip = (label: string, key: 'status' | 'health' | 'targeting_type') => {
+  const renderArrayChip = (label: string, key: 'status' | 'targeting_type') => {
     const arr = filters[key];
     if (!arr || arr.length === 0) return null;
 
     return (
       <span
         key={label}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono bg-surface border border-border-dim text-text-main shadow-2xs"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono bg-white border border-slate-300 text-slate-800 shadow-2xs"
       >
         <span>
           {label}: {arr.join(', ')}
@@ -180,13 +187,12 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
             </button>
           }
         >
-          <div className="w-56 p-2 text-xs font-mono text-text-main flex flex-col gap-1">
+          <div className="w-56 p-2 text-xs font-mono text-slate-800 flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-wider text-slate-400 px-2 py-1">
               Select Field
             </span>
             {[
               { id: 'status', label: 'Status' },
-              { id: 'health', label: 'Health' },
               { id: 'targeting_type', label: 'Targeting Type' },
               { id: 'budget', label: 'Budget' },
               { id: 'spend', label: 'Spend' },
@@ -197,7 +203,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
               { id: 'cpc', label: 'CPC' },
               { id: 'acos', label: 'ACOS' },
               { id: 'roas', label: 'ROAS' },
-              { id: 'utilization', label: 'Time in Budget (%)' },
+              { id: 'utilization', label: 'Budget Utilization (%)' },
             ].map((f) => (
               <button
                 key={f.id}
@@ -212,7 +218,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
 
             {savedFilters.length > 0 && (
               <>
-                <div className="h-px bg-border-dim my-1" />
+                <div className="h-px bg-slate-200 my-1" />
                 <span className="text-[10px] uppercase tracking-wider text-slate-400 px-2 py-1">
                   Saved Filters
                 </span>
@@ -253,7 +259,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
           trigger={<span className="hidden" />}
         >
           <div className="w-48 p-3 text-xs font-mono">
-            <span className="block text-[11px] uppercase tracking-wider text-slate-400 mb-2 font-medium">
+            <span className="block text-[11px] uppercase tracking-wider text-slate-500 mb-2 font-medium">
               Status Filter
             </span>
             {['ENABLED', 'PAUSED', 'ARCHIVED'].map((st) => (
@@ -267,7 +273,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                       : filters.status.filter((s) => s !== st);
                     onChange({ ...filters, status: newStatus });
                   }}
-                  className="rounded border-border-dim text-primary focus:ring-primary"
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <span>{st}</span>
               </label>
@@ -275,43 +281,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
             <button
               type="button"
               onClick={() => setActivePopover(null)}
-              className="mt-2 w-full py-1 bg-primary text-white text-xs rounded text-center"
-            >
-              Done
-            </button>
-          </div>
-        </Popover>
-
-        {/* Health Popover */}
-        <Popover
-          open={activePopover === 'health'}
-          onOpenChange={(open) => setActivePopover(open ? 'health' : null)}
-          trigger={<span className="hidden" />}
-        >
-          <div className="w-48 p-3 text-xs font-mono">
-            <span className="block text-[11px] uppercase tracking-wider text-slate-400 mb-2 font-medium">
-              Health Status
-            </span>
-            {['LEARNING', 'BUDGET_LEAK', 'SCALE', 'HEALTHY'].map((h) => (
-              <label key={h} className="flex items-center gap-2 py-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filters.health.includes(h)}
-                  onChange={(e) => {
-                    const newHealth = e.target.checked
-                      ? [...filters.health, h]
-                      : filters.health.filter((x) => x !== h);
-                    onChange({ ...filters, health: newHealth });
-                  }}
-                  className="rounded border-border-dim text-primary focus:ring-primary"
-                />
-                <span>{h}</span>
-              </label>
-            ))}
-            <button
-              type="button"
-              onClick={() => setActivePopover(null)}
-              className="mt-2 w-full py-1 bg-primary text-white text-xs rounded text-center"
+              className="mt-2 w-full py-1 bg-indigo-600 text-white text-xs rounded text-center font-semibold"
             >
               Done
             </button>
@@ -325,7 +295,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
           trigger={<span className="hidden" />}
         >
           <div className="w-48 p-3 text-xs font-mono">
-            <span className="block text-[11px] uppercase tracking-wider text-slate-400 mb-2 font-medium">
+            <span className="block text-[11px] uppercase tracking-wider text-slate-500 mb-2 font-medium">
               Targeting Type
             </span>
             {['AUTO', 'MANUAL'].map((t) => (
@@ -339,7 +309,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                       : filters.targeting_type.filter((x) => x !== t);
                     onChange({ ...filters, targeting_type: newTargeting });
                   }}
-                  className="rounded border-border-dim text-primary focus:ring-primary"
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <span>{t}</span>
               </label>
@@ -347,7 +317,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
             <button
               type="button"
               onClick={() => setActivePopover(null)}
-              className="mt-2 w-full py-1 bg-primary text-white text-xs rounded text-center"
+              className="mt-2 w-full py-1 bg-indigo-600 text-white text-xs rounded text-center font-semibold"
             >
               Done
             </button>
@@ -368,7 +338,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
               trigger={<span className="hidden" />}
             >
               <div className="w-64 p-3 text-xs font-mono">
-                <span className="block text-[11px] uppercase tracking-wider text-slate-400 mb-2 font-medium">
+                <span className="block text-[11px] uppercase tracking-wider text-slate-500 mb-2 font-medium">
                   {field.toUpperCase()} Range
                 </span>
                 <div className="grid grid-cols-2 gap-2 mb-3">
@@ -384,7 +354,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                           [minKey]: e.target.value === '' ? undefined : Number(e.target.value),
                         })
                       }
-                      className="w-full px-2 py-1 text-xs border border-border-dim rounded bg-white"
+                      className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white"
                       placeholder="0"
                     />
                   </div>
@@ -400,7 +370,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                           [maxKey]: e.target.value === '' ? undefined : Number(e.target.value),
                         })
                       }
-                      className="w-full px-2 py-1 text-xs border border-border-dim rounded bg-white"
+                      className="w-full px-2 py-1 text-xs border border-slate-300 rounded bg-white"
                       placeholder="∞"
                     />
                   </div>
@@ -418,7 +388,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                   <button
                     type="button"
                     onClick={() => setActivePopover(null)}
-                    className="px-3 py-1 bg-primary text-white text-xs rounded"
+                    className="px-3 py-1 bg-indigo-600 text-white text-xs rounded font-semibold"
                   >
                     Apply
                   </button>
@@ -428,62 +398,24 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
           );
         })}
 
-        {/* Quick filter buttons */}
+        {/* Bleeding quick filter */}
         <div className="flex items-center gap-1.5 border-l border-slate-300 pl-2">
-          {(() => {
-            const isBleeding = filters.min_spend === 1 && filters.max_orders === 0;
-            return (
-              <button
-                type="button"
-                onClick={() => {
-                  if (isBleeding) {
-                    onChange({ ...filters, min_spend: undefined, max_orders: undefined });
-                  } else {
-                    onChange({ ...filters, min_spend: 1, max_orders: 0 });
-                  }
-                }}
-                className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
-                  isBleeding
-                    ? 'bg-red-600 text-white border-red-600 font-semibold shadow-2xs'
-                    : 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100 font-medium'
-                }`}
-              >
-                Bleeding (Spend &gt; ₹0, Sales = ₹0)
-              </button>
-            );
-          })()}
           <button
             type="button"
-            onClick={() => applyQuickFilter('leak')}
+            onClick={() => {
+              if (isBleeding) {
+                onChange({ ...filters, min_spend: undefined, max_orders: undefined });
+              } else {
+                onChange({ ...filters, min_spend: 1, max_orders: 0 });
+              }
+            }}
             className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
-              filters.health.includes('BUDGET_LEAK')
-                ? 'bg-amber-600 text-white border-amber-600 font-semibold shadow-2xs'
-                : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-medium'
+              isBleeding
+                ? 'bg-red-600 text-white border-red-600 font-semibold shadow-2xs'
+                : 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100 font-medium'
             }`}
           >
-            Budget leak
-          </button>
-          <button
-            type="button"
-            onClick={() => applyQuickFilter('scale')}
-            className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
-              filters.health.includes('SCALE')
-                ? 'bg-emerald-600 text-white border-emerald-600 font-semibold shadow-2xs'
-                : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-medium'
-            }`}
-          >
-            Ready to scale
-          </button>
-          <button
-            type="button"
-            onClick={() => applyQuickFilter('budget_limited')}
-            className={`px-2.5 py-1 text-xs font-mono rounded-md border transition-colors ${
-              filters.min_utilization === 90
-                ? 'bg-amber-600 text-white border-amber-600 font-semibold shadow-2xs'
-                : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-100 font-medium'
-            }`}
-          >
-            Limited by budget
+            Bleeding (Spend &gt; ₹0, Orders = 0)
           </button>
         </div>
 
@@ -510,7 +442,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
               placeholder="e.g. High spend campaigns"
-              className="w-full px-2 py-1 text-xs border border-border-dim rounded mb-2"
+              className="w-full px-2 py-1 text-xs border border-slate-300 rounded mb-2"
               autoFocus
             />
             <div className="flex justify-end gap-1.5">
@@ -525,7 +457,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
                 type="button"
                 onClick={handleSaveFilter}
                 disabled={!saveName.trim()}
-                className="px-2.5 py-1 text-xs bg-primary text-white rounded font-medium disabled:opacity-50"
+                className="px-2.5 py-1 text-xs bg-indigo-600 text-white rounded font-medium disabled:opacity-50"
               >
                 Save
               </button>
@@ -535,11 +467,11 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
 
         {/* Clear All */}
         {(filters.status.length > 0 ||
-          filters.health.length > 0 ||
           filters.targeting_type.length > 0 ||
           filters.min_spend !== undefined ||
           filters.max_spend !== undefined ||
           filters.min_sales !== undefined ||
+          filters.min_orders !== undefined ||
           filters.min_utilization !== undefined) && (
           <button
             type="button"
@@ -554,7 +486,6 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
       {/* Chips row */}
       <div className="flex flex-wrap items-center gap-1.5 min-h-[28px]">
         {renderArrayChip('Status', 'status')}
-        {renderArrayChip('Health', 'health')}
         {renderArrayChip('Targeting', 'targeting_type')}
         {renderNumericChip('Budget', 'min_budget', 'max_budget', '₹')}
         {renderNumericChip('Spend', 'min_spend', 'max_spend', '₹')}
@@ -565,7 +496,7 @@ export function FilterBar({ filters, onChange }: FilterBarProps) {
         {renderNumericChip('CPC', 'min_cpc', 'max_cpc', '₹')}
         {renderNumericChip('ACOS', 'min_acos', 'max_acos', '%')}
         {renderNumericChip('ROAS', 'min_roas', 'max_roas', 'x')}
-        {renderNumericChip('Time in budget', 'min_utilization', 'max_utilization', '%')}
+        {renderNumericChip('Budget utilization', 'min_utilization', 'max_utilization', '%')}
       </div>
     </div>
   );

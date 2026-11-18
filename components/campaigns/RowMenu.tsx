@@ -1,83 +1,33 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Popover } from "@/components/ui/Popover";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-
-export type CampaignStatus = "ENABLED" | "PAUSED" | "ARCHIVED" | string;
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Popover } from '@/components/ui/Popover';
+import { Sliders, Eye, Clock } from 'lucide-react';
 
 export interface RowMenuCampaign {
   id: string | number;
   name: string;
-  status?: CampaignStatus;
-  state?: CampaignStatus;
+  status?: string;
+  state?: string;
   daily_budget?: number;
 }
 
 export interface RowMenuProps {
   campaign: RowMenuCampaign;
-  onStatusChange?: (
-    campaignId: string,
-    nextStatus: "ENABLED" | "PAUSED" | "ARCHIVED"
-  ) => Promise<void> | void;
-  onDuplicate?: (campaign: RowMenuCampaign) => Promise<void> | void;
-  onEditBudget?: (campaign: RowMenuCampaign) => void;
-  onDelete?: (campaignId: string) => Promise<void> | void;
+  onBidThreshold?: (campaign: RowMenuCampaign) => void;
+  onHourlyTracking?: (campaign: RowMenuCampaign) => void;
   disabled?: boolean;
 }
 
 export function RowMenu({
   campaign,
-  onStatusChange,
-  onDuplicate,
-  onEditBudget,
-  onDelete,
+  onBidThreshold,
+  onHourlyTracking,
   disabled = false,
 }: RowMenuProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [isPending, setIsPending] = useState(false);
-  const [confirmState, setConfirmState] = useState<{
-    open: boolean;
-    type: "ARCHIVE" | "DELETE" | null;
-  }>({ open: false, type: null });
-
-  const normalizedStatus = (campaign.status || campaign.state || "").toUpperCase();
-  const isArchived = normalizedStatus === "ARCHIVED";
-  const isEnabled = normalizedStatus === "ENABLED" || normalizedStatus === "ACTIVE";
-  const isPaused = normalizedStatus === "PAUSED";
-
-  const runAction = async (
-    action: () => Promise<void> | void,
-    closeMenu: () => void
-  ) => {
-    if (isPending || disabled) return;
-    closeMenu();
-    try {
-      setIsPending(true);
-      await action();
-    } finally {
-      setIsPending(false);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!confirmState.type || isPending) return;
-    const actionType = confirmState.type;
-    setConfirmState({ open: false, type: null });
-
-    try {
-      setIsPending(true);
-      if (actionType === "ARCHIVE" && onStatusChange) {
-        await onStatusChange(String(campaign.id), "ARCHIVED");
-      } else if (actionType === "DELETE" && onDelete) {
-        await onDelete(String(campaign.id));
-      }
-    } finally {
-      setIsPending(false);
-    }
-  };
 
   return (
     <div
@@ -91,10 +41,10 @@ export function RowMenu({
         trigger={
           <button
             type="button"
-            disabled={disabled || isPending}
+            disabled={disabled}
             aria-label={`Actions for ${campaign.name}`}
             data-testid={`row-menu-trigger-${campaign.id}`}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-primary disabled:opacity-50"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -117,136 +67,57 @@ export function RowMenu({
       >
         {({ close }) => (
           <div className="flex flex-col py-1 text-xs font-mono text-slate-700 w-44">
+            {/* 1. Bid Threshold (Phase 5) */}
             <button
               type="button"
               role="menuitem"
-              className="flex w-full items-center px-3 py-1.5 text-left hover:bg-slate-100 transition-colors"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-100 transition-colors font-medium text-slate-800"
+              onClick={(e) => {
+                e.stopPropagation();
+                close();
+                if (onBidThreshold) {
+                  onBidThreshold(campaign);
+                }
+              }}
+            >
+              <Sliders className="w-3.5 h-3.5 text-slate-500" />
+              <span>Bid Threshold</span>
+            </button>
+
+            {/* 2. View Campaign (Phase 6 / D10) */}
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-100 transition-colors font-medium text-slate-800"
               onClick={(e) => {
                 e.stopPropagation();
                 close();
                 router.push(`/campaigns/${campaign.id}`);
               }}
             >
-              View details
+              <Eye className="w-3.5 h-3.5 text-slate-500" />
+              <span>View Campaign</span>
             </button>
 
-            {onEditBudget && !isArchived && (
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center px-3 py-1.5 text-left hover:bg-slate-100 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  close();
-                  onEditBudget(campaign);
-                }}
-              >
-                Edit daily budget
-              </button>
-            )}
-
-            {onStatusChange && isEnabled && (
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center px-3 py-1.5 text-left hover:bg-slate-100 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void runAction(
-                    () => onStatusChange(String(campaign.id), "PAUSED"),
-                    close
-                  );
-                }}
-              >
-                Pause campaign
-              </button>
-            )}
-
-            {onStatusChange && isPaused && (
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center px-3 py-1.5 text-left hover:bg-slate-100 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void runAction(
-                    () => onStatusChange(String(campaign.id), "ENABLED"),
-                    close
-                  );
-                }}
-              >
-                Enable campaign
-              </button>
-            )}
-
-            {onDuplicate && (
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center px-3 py-1.5 text-left hover:bg-slate-100 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void runAction(() => onDuplicate(campaign), close);
-                }}
-              >
-                Duplicate
-              </button>
-            )}
-
-            {!isArchived && onStatusChange && (
-              <>
-                <div className="my-1 border-t border-border-dim" />
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="flex w-full items-center px-3 py-1.5 text-left text-spend hover:bg-red-50 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    close();
-                    setConfirmState({ open: true, type: "ARCHIVE" });
-                  }}
-                >
-                  Archive campaign
-                </button>
-              </>
-            )}
-
-            {onDelete && (
-              <button
-                type="button"
-                role="menuitem"
-                className="flex w-full items-center px-3 py-1.5 text-left text-spend hover:bg-red-50 transition-colors"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  close();
-                  setConfirmState({ open: true, type: "DELETE" });
-                }}
-              >
-                Delete campaign
-              </button>
-            )}
+            {/* 3. Hourly Tracking (Phase 7 / Q7) */}
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-100 transition-colors font-medium text-slate-800"
+              onClick={(e) => {
+                e.stopPropagation();
+                close();
+                if (onHourlyTracking) {
+                  onHourlyTracking(campaign);
+                }
+              }}
+            >
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <span>Hourly Tracking</span>
+            </button>
           </div>
         )}
       </Popover>
-
-      {/* Rendered outside Popover so closing the menu does not unmount the modal */}
-      <ConfirmDialog
-        open={confirmState.open}
-        title={
-          confirmState.type === "ARCHIVE"
-            ? "Archive Campaign?"
-            : "Delete Campaign?"
-        }
-        description={
-          confirmState.type === "ARCHIVE"
-            ? `Archiving "${campaign.name}" will permanently stop ad delivery. Archived campaigns cannot be re-enabled.`
-            : `Are you sure you want to permanently delete "${campaign.name}"?`
-        }
-        confirmLabel={confirmState.type === "ARCHIVE" ? "Archive" : "Delete"}
-        variant="destructive"
-        onConfirm={handleConfirm}
-        onCancel={() => setConfirmState({ open: false, type: null })}
-      />
     </div>
   );
 }

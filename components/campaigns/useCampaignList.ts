@@ -67,8 +67,10 @@ export function useCampaignList() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { account, accounts, loading: accountLoading, rules, todayInTz } = useActiveAccount();
+  const { account, accounts, loading: accountLoading, rules, todayInTz, refreshAccounts } = useActiveAccount();
   const { showToast } = useToast();
+
+  const autoSyncedAccountsRef = useRef<Set<number>>(new Set());
 
   const highlightId = searchParams.get('highlight') ? Number(searchParams.get('highlight')) : null;
   const [highlightedRowId, setHighlightedRowId] = useState<number | null>(highlightId);
@@ -104,7 +106,7 @@ export function useCampaignList() {
   });
 
   const [page, setPage] = useState<number>(() => Number(searchParams.get('page')) || 1);
-  const [pageSize, setPageSize] = useState<number>(() => Number(searchParams.get('pageSize')) || 25);
+  const [pageSize, setPageSize] = useState<number>(() => Number(searchParams.get('pageSize')) || 50);
   const [sortField, setSortField] = useState<string>(() => searchParams.get('sort') || 'spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => (searchParams.get('dir') === 'asc' ? 'asc' : 'desc'));
 
@@ -113,7 +115,7 @@ export function useCampaignList() {
     const healthParam = searchParams.getAll('health');
     const targetingParam = searchParams.getAll('targeting_type');
     return {
-      status: statusParam.length ? statusParam : ['ENABLED', 'PAUSED'],
+      status: statusParam.length ? statusParam : ['ENABLED'],
       health: healthParam,
       targeting_type: targetingParam,
       search: searchParams.get('q') || '',
@@ -144,15 +146,15 @@ export function useCampaignList() {
     };
   });
 
-  // Chart Metric Pair (persist to localStorage)
-  const [selectedChartMetrics, setSelectedChartMetrics] = useState<[MetricKey, MetricKey]>(() => {
+  // Chart Metric Selection (persist to localStorage, 1 to 4 metrics per Q14)
+  const [selectedChartMetrics, setSelectedChartMetrics] = useState<MetricKey[]>(() => {
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('agy_campaign_chart_metrics');
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length === 2) {
-            return parsed as [MetricKey, MetricKey];
+          if (Array.isArray(parsed) && parsed.length >= 1) {
+            return parsed as MetricKey[];
           }
         }
       } catch {}
@@ -162,13 +164,15 @@ export function useCampaignList() {
 
   const toggleChartMetric = useCallback((metric: MetricKey) => {
     setSelectedChartMetrics((prev) => {
-      let next: [MetricKey, MetricKey];
-      if (prev[0] === metric) {
-        next = prev;
-      } else if (prev[1] === metric) {
-        next = [prev[1], prev[0]];
+      let next: MetricKey[];
+      if (prev.includes(metric)) {
+        if (prev.length <= 1) {
+          next = prev; // Keep at least 1 metric
+        } else {
+          next = prev.filter((m) => m !== metric);
+        }
       } else {
-        next = [prev[0], metric];
+        next = [...prev, metric]; // Allow selecting all metrics
       }
       if (typeof window !== 'undefined') {
         try {
@@ -200,6 +204,11 @@ export function useCampaignList() {
   const [totals, setTotals] = useState<ReportTotals | null>(null);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [summaryData, setSummaryData] = useState<CampaignSummaryResponse | null>(null);
+  const [granularity, setGranularity] = useState<'daily' | 'weekly' | 'monthly'>(() => {
+    const g = searchParams.get('granularity');
+    if (g === 'weekly' || g === 'monthly' || g === 'daily') return g;
+    return 'daily';
+  });
   const [alerts, setAlerts] = useState<CampaignAlert[]>([]);
   const [meta, setMeta] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -217,6 +226,7 @@ export function useCampaignList() {
     if (dateRange.start) sp.set('start', dateRange.start);
     if (dateRange.end) sp.set('end', dateRange.end);
     if (dateRange.compare) sp.set('compare', 'true');
+    if (granularity !== 'daily') sp.set('granularity', granularity);
     if (filters.search) sp.set('q', filters.search);
     if (filters.portfolio) sp.set('portfolio', filters.portfolio);
     if (filters.bidding_strategy) sp.set('bidding_strategy', filters.bidding_strategy);
@@ -244,7 +254,7 @@ export function useCampaignList() {
     const newQuery = sp.toString();
     const targetUrl = newQuery ? `${pathname}?${newQuery}` : pathname;
     window.history.replaceState(null, '', targetUrl);
-  }, [page, pageSize, sortField, sortDir, dateRange, filters, pathname]);
+  }, [page, pageSize, sortField, sortDir, dateRange, filters, granularity, pathname]);
 
   useEffect(() => {
     updateUrl();
@@ -307,7 +317,7 @@ export function useCampaignList() {
             start: dateRange.start,
             end: dateRange.end,
             compare: dateRange.compare,
-            granularity: 'daily',
+            granularity: granularity,
           },
           controller.signal
         ),
@@ -332,7 +342,7 @@ export function useCampaignList() {
     } finally {
       setLoading(false);
     }
-  }, [account, page, pageSize, sortField, sortDir, dateRange, filters]);
+  }, [account, page, pageSize, sortField, sortDir, dateRange, filters, granularity]);
 
   useEffect(() => {
     fetchData();
@@ -343,6 +353,34 @@ export function useCampaignList() {
     };
   }, [fetchData]);
 
+  // Auto-sync in background on page open if last_synced_at is > 6 hours old (Phase 0 Q4)
+  useEffect(() => {
+    if (!account || autoSyncedAccountsRef.current.has(account.id)) return;
+    if (account.connection_status !== 'connected') return;
+
+    const isOlderThan6Hours = () => {
+      if (!account.last_synced_at) return true;
+      const lastSync = new Date(account.last_synced_at).getTime();
+      const sixHoursAgo = Date.now() - 6 * 60 * 60 * 1000;
+      return lastSync < sixHoursAgo;
+    };
+
+    if (isOlderThan6Hours()) {
+      autoSyncedAccountsRef.current.add(account.id);
+      syncAdsAccount(account.id)
+        .then(async () => {
+          await refreshAccounts();
+          await fetchData();
+        })
+        .catch((err) => {
+          // Non-blocking background sync error
+          if (err?.status !== 409 && err?.status !== 429) {
+            console.warn('Background auto-sync notification:', err?.message || err);
+          }
+        });
+    }
+  }, [account, refreshAccounts, fetchData]);
+
   // Sync account
   const handleSync = async () => {
     if (!account || syncing) return;
@@ -350,9 +388,28 @@ export function useCampaignList() {
     try {
       await syncAdsAccount(account.id);
       showToast({ title: 'Sync completed', message: 'Account metrics have been refreshed.', type: 'success' });
+      await refreshAccounts();
       await fetchData();
     } catch (err: any) {
-      showToast({ title: 'Sync failed', message: err?.message || 'Failed to sync with Amazon Ads', type: 'error' });
+      if (err?.status === 409) {
+        showToast({
+          title: 'Sync in progress',
+          message: 'Sync already in progress; check back shortly',
+          type: 'info',
+        });
+      } else if (err?.status === 429) {
+        showToast({
+          title: 'Synced recently',
+          message: err?.message || 'Synced recently; try again in a few moments',
+          type: 'info',
+        });
+      } else {
+        showToast({
+          title: 'Sync failed',
+          message: err?.message || 'Failed to sync with Amazon Ads',
+          type: 'error',
+        });
+      }
     } finally {
       setSyncing(false);
     }
@@ -499,6 +556,8 @@ export function useCampaignList() {
     setSortDir,
     dateRange,
     setDateRange,
+    granularity,
+    setGranularity,
     filters,
     setFilters,
     updateFilters,

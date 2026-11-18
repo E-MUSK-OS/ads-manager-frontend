@@ -36,6 +36,7 @@ export interface AdsAccount {
   is_connected?: boolean;
   is_mock?: boolean;
   last_synced_at?: string | null;
+  sync_status?: string;
   connection_status?: string;
   is_active?: boolean;
   created_at?: string;
@@ -442,3 +443,93 @@ export interface NegativeKeywordItem {
   match_type: NegMatch;
   created_at?: string;
 }
+
+export interface BidThreshold {
+  id?: number | null;
+  campaign_id: number;
+  min_bid?: number | null;
+  max_bid?: number | null;
+  target_acos?: number | null;
+  updated_at?: string | null;
+  updated_by?: number | null;
+}
+
+export interface HourlyStatusResponse {
+  is_connected: boolean;
+  status: string;
+  subscribed_at?: string | null;
+  last_message_at?: string | null;
+  message_count?: number;
+}
+
+export interface HourlySummaryTotals {
+  impressions?: number | null;
+  clicks?: number | null;
+  spend?: number | null;
+  orders?: number | null;
+  sales?: number | null;
+  ctr?: number | null;
+  cpc?: number | null;
+  cvr?: number | null;
+  acos?: number | null;
+  roas?: number | null;
+}
+
+export interface HourlySummaryResponse {
+  is_connected: boolean;
+  has_data: boolean;
+  start: string;
+  end: string;
+  totals: HourlySummaryTotals;
+}
+
+export interface HourlyTrendPoint {
+  hour: number;
+  label: string;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  orders: number;
+  sales: number;
+  ctr?: number | null;
+  cpc?: number | null;
+  cvr?: number | null;
+  acos?: number | null;
+  roas?: number | null;
+}
+
+export interface HourlyPeakLow {
+  peak_hour: number;
+  peak_label: string;
+  peak_value: number | null;
+  low_hour: number;
+  low_label: string;
+  low_value: number | null;
+}
+
+export interface HourlyTrendsResponse {
+  is_connected: boolean;
+  has_data: boolean;
+  series: HourlyTrendPoint[];
+  peaks_and_lows: Record<string, HourlyPeakLow>;
+}
+
+export interface HourlyMatrixRow {
+  date: string;
+  hours: Record<string, number>;
+  daily_total: number;
+}
+
+export interface HourlyMatrixResponse {
+  is_connected: boolean;
+  has_data: boolean;
+  metric: string;
+  start: string;
+  end: string;
+  dates: string[];
+  rows: HourlyMatrixRow[];
+  summary_row: HourlyMatrixRow;
+  min_value: number;
+  max_value: number;
+}
+

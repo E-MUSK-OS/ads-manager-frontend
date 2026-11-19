@@ -36,11 +36,14 @@ export function getMetricUnitAdornment(
 ): string {
   const unit = meta?.metrics?.[metric]?.unit;
   if (!unit) {
+    if (metric.includes('_share') || metric.endsWith('_pct') || metric.includes('acos') || metric.includes('ctr') || metric.includes('cvr')) {
+      return '%';
+    }
+    if (metric.includes('roas')) {
+      return '×';
+    }
     if (metric.includes('spend') || metric.includes('cpc') || metric.includes('revenue') || metric.includes('bid')) {
       return currencySymbol;
-    }
-    if (metric.includes('acos') || metric.includes('roas') || metric.includes('ctr') || metric.includes('cvr')) {
-      return metric.includes('roas') ? '×' : '%';
     }
     return '';
   }
@@ -91,6 +94,18 @@ export function describeCondition(
     return `${metricLabel} ${opSymbol} —`;
   }
 
+  if (condition.metric === 'acos_vs_target') {
+    const sign = condition.value > 0 ? `+${condition.value}` : `${condition.value}`;
+    const offsetStr = condition.value !== 0 ? ` (${sign}%)` : '';
+    return `ACOS ${opSymbol} Target ACOS${offsetStr}`;
+  }
+  if (condition.metric === 'out_of_budget_days') {
+    return `Out of budget ${opSymbol} ${condition.value} days`;
+  }
+  if (condition.metric === 'entity_age_days') {
+    return `Entity age ${opSymbol} ${condition.value} days`;
+  }
+
   let formattedValue = '';
   if (unit === 'money') {
     formattedValue = `${currencySymbol}${condition.value}`;
@@ -126,6 +141,13 @@ export function describeConditionMatched(
     threshFormatted = `${matched.threshold}`;
   }
 
+  if (matched.metric === 'acos_vs_target') {
+    return `ACOS ${actualFormatted} ${opSymbol} Target ACOS threshold ${threshFormatted} ✓`;
+  }
+  if (matched.metric === 'out_of_budget_days') {
+    return `Out of budget ${matched.actual ?? 0}d ${opSymbol} ${matched.threshold}d ✓`;
+  }
+
   return `${metricLabel} ${actualFormatted} ${opSymbol} ${threshFormatted} ✓`;
 }
 
@@ -146,36 +168,48 @@ export function describeRuleAction(
     }
   }
 
-  if (actionType === 'add_negative_target' || actionType === 'add_negative_search_term') {
-    const matchType = action.params.match_type ? String(action.params.match_type).toUpperCase() : 'EXACT';
-    const matchTypeTitle = matchType === 'EXACT' ? 'Exact' : matchType === 'PHRASE' ? 'Phrase' : matchType;
+  if (actionType === 'ADD_AS_NEGATIVE') {
+    const rawMatch = action.params?.match_type ? String(action.params.match_type).toUpperCase() : 'NEGATIVE_EXACT';
+    const matchTypeTitle = rawMatch.includes('PHRASE') ? 'Phrase' : 'Exact';
     return `Add as Negative Targeting · ${matchTypeTitle}`;
   }
 
-  if (actionType === 'pause_target' || actionType === 'pause_keyword' || actionType === 'pause_placement') {
+  if (actionType === 'PAUSE_TARGET' || actionType === 'PAUSE_CAMPAIGN') {
     return 'Pause';
   }
 
-  if (actionType === 'decrease_bid' || actionType === 'increase_bid') {
-    const pct = action.params.percentage;
-    const direction = actionType === 'decrease_bid' ? 'Decrease' : 'Increase';
+  if (actionType === 'ENABLE_CAMPAIGN') {
+    return 'Enable campaign';
+  }
+
+  if (actionType === 'SET_BUDGET') {
+    const val = action.params?.value;
+    return val !== undefined && val !== null ? `Set daily budget to ${currencySymbol}${val}` : 'Set daily budget';
+  }
+
+  if (actionType === 'DECREASE_BID' || actionType === 'INCREASE_BID') {
+    const direction = actionType === 'DECREASE_BID' ? 'Decrease' : 'Increase';
+    if (action.params?.mode === 'amount') {
+      const amount = action.params?.value;
+      return amount !== undefined && amount !== null ? `${direction} bid by ${currencySymbol}${amount}` : `${direction} bid`;
+    }
+    const pct = action.params?.pct ?? action.params?.value ?? action.params?.percentage;
     return pct !== undefined && pct !== null ? `${direction} bid by ${pct}%` : `${direction} bid`;
   }
 
-  if (actionType === 'increase_budget' || actionType === 'decrease_budget') {
-    const pct = action.params.percentage;
-    const direction = actionType === 'increase_budget' ? 'Increase' : 'Decrease';
+  if (actionType === 'INCREASE_BUDGET' || actionType === 'DECREASE_BUDGET') {
+    const direction = actionType === 'INCREASE_BUDGET' ? 'Increase' : 'Decrease';
+    if (action.params?.mode === 'amount') {
+      const amount = action.params?.value;
+      return amount !== undefined && amount !== null ? `${direction} daily budget by ${currencySymbol}${amount}` : `${direction} daily budget`;
+    }
+    const pct = action.params?.pct ?? action.params?.value ?? action.params?.percentage;
     return pct !== undefined && pct !== null ? `${direction} daily budget by ${pct}%` : `${direction} daily budget`;
   }
 
-  if (actionType === 'set_bid') {
-    const amount = action.params.amount;
-    return amount !== undefined && amount !== null ? `Set bid to ${currencySymbol}${amount}` : 'Set bid';
-  }
-
-  if (actionType === 'INCREASE_PLACEMENT' || actionType === 'increase_placement' || actionType === 'DECREASE_PLACEMENT' || actionType === 'decrease_placement') {
-    const points = action.params.points;
-    const direction = (actionType.startsWith('INCREASE') || actionType.startsWith('increase')) ? 'Increase' : 'Decrease';
+  if (actionType === 'INCREASE_PLACEMENT' || actionType === 'DECREASE_PLACEMENT') {
+    const points = action.params?.points;
+    const direction = actionType === 'INCREASE_PLACEMENT' ? 'Increase' : 'Decrease';
     return points !== undefined && points !== null ? `${direction} placement adjustment by ${points}%` : `${direction} placement adjustment`;
   }
 
@@ -211,8 +245,9 @@ export function describeRecommendationAction(
   const campaignName = rec?.campaign_name;
   const actionType = action.type;
 
-  if (actionType === 'add_negative_target' || actionType === 'add_negative_search_term' || actionType === 'negative_keyword') {
-    const matchType = (action.params?.match_type as string)?.toLowerCase() || 'exact';
+  if (actionType === 'ADD_AS_NEGATIVE') {
+    const rawMatch = (action.params?.match_type as string)?.toUpperCase() || 'NEGATIVE_EXACT';
+    const matchType = rawMatch.includes('PHRASE') ? 'phrase' : 'exact';
     let loc = '';
     if (adGroupName) {
       loc = adGroupName.toLowerCase().startsWith('ad group') ? `in ${adGroupName}` : `in Ad group ${adGroupName}`;
@@ -222,45 +257,64 @@ export function describeRecommendationAction(
     return `Add '${entityLabel}' as a negative ${matchType} keyword${loc ? ' ' + loc : ''}`;
   }
 
-  if (actionType === 'pause_target' || actionType === 'pause_keyword' || actionType === 'pause') {
+  if (actionType === 'PAUSE_TARGET') {
     return `Pause keyword '${entityLabel}'`;
   }
 
-  if (actionType === 'decrease_bid' || actionType === 'increase_bid') {
+  if (actionType === 'PAUSE_CAMPAIGN') {
+    return `Pause campaign '${campaignName || entityLabel}'`;
+  }
+
+  if (actionType === 'ENABLE_CAMPAIGN') {
+    return `Enable campaign '${campaignName || entityLabel}'`;
+  }
+
+  if (actionType === 'SET_BUDGET') {
     const fromVal = action.from as number | undefined;
     const toVal = action.to as number | undefined;
-    const pct = action.params?.percentage as number | undefined;
-    const direction = actionType === 'decrease_bid' ? 'Decrease' : 'Increase';
-    const sign = actionType === 'decrease_bid' ? '−' : '+';
+    if (fromVal !== undefined && toVal !== undefined) {
+      return `Set daily budget ${currencySymbol}${Math.round(fromVal)} → ${currencySymbol}${Math.round(toVal)}`;
+    }
+    return `Set daily budget to ${currencySymbol}${action.to}`;
+  }
+
+  if (actionType === 'DECREASE_BID' || actionType === 'INCREASE_BID') {
+    const fromVal = action.from as number | undefined;
+    const toVal = action.to as number | undefined;
+    const direction = actionType === 'DECREASE_BID' ? 'Decrease' : 'Increase';
+    const sign = actionType === 'DECREASE_BID' ? '−' : '+';
+    const isAmount = action.params?.mode === 'amount';
+    const val = action.params?.value ?? action.params?.pct ?? action.params?.percentage;
 
     if (fromVal !== undefined && toVal !== undefined) {
-      const pctStr = pct !== undefined ? ` (${sign}${pct}%)` : '';
-      return `${direction} bid ${currencySymbol}${fromVal.toFixed(2)} → ${currencySymbol}${toVal.toFixed(2)}${pctStr}`;
+      const deltaStr = val !== undefined ? (isAmount ? ` (${sign}${currencySymbol}${val})` : ` (${sign}${val}%)`) : '';
+      return `${direction} bid ${currencySymbol}${fromVal.toFixed(2)} → ${currencySymbol}${toVal.toFixed(2)}${deltaStr}`;
     }
-    if (pct !== undefined) {
-      return `${direction} bid by ${pct}%`;
+    if (val !== undefined) {
+      return isAmount ? `${direction} bid by ${currencySymbol}${val}` : `${direction} bid by ${val}%`;
     }
     return `${direction} bid`;
   }
 
-  if (actionType === 'increase_budget' || actionType === 'decrease_budget') {
+  if (actionType === 'INCREASE_BUDGET' || actionType === 'DECREASE_BUDGET') {
     const fromVal = action.from as number | undefined;
     const toVal = action.to as number | undefined;
-    const pct = action.params?.percentage as number | undefined;
-    const direction = actionType === 'increase_budget' ? 'Increase' : 'Decrease';
-    const sign = actionType === 'increase_budget' ? '+' : '−';
+    const direction = actionType === 'INCREASE_BUDGET' ? 'Increase' : 'Decrease';
+    const sign = actionType === 'INCREASE_BUDGET' ? '+' : '−';
+    const isAmount = action.params?.mode === 'amount';
+    const val = action.params?.value ?? action.params?.pct ?? action.params?.percentage;
 
     if (fromVal !== undefined && toVal !== undefined) {
-      const pctStr = pct !== undefined ? ` (${sign}${pct}%)` : '';
-      return `${direction} daily budget ${currencySymbol}${Math.round(fromVal)} → ${currencySymbol}${Math.round(toVal)}${pctStr}`;
+      const deltaStr = val !== undefined ? (isAmount ? ` (${sign}${currencySymbol}${val})` : ` (${sign}${val}%)`) : '';
+      return `${direction} daily budget ${currencySymbol}${Math.round(fromVal)} → ${currencySymbol}${Math.round(toVal)}${deltaStr}`;
     }
-    if (pct !== undefined) {
-      return `${direction} daily budget by ${pct}%`;
+    if (val !== undefined) {
+      return isAmount ? `${direction} daily budget by ${currencySymbol}${val}` : `${direction} daily budget by ${val}%`;
     }
     return `${direction} daily budget`;
   }
 
-  if (actionType === 'INCREASE_PLACEMENT' || actionType === 'increase_placement' || actionType === 'DECREASE_PLACEMENT' || actionType === 'decrease_placement') {
+  if (actionType === 'INCREASE_PLACEMENT' || actionType === 'DECREASE_PLACEMENT') {
     const fromVal = action.from as number | undefined;
     const toVal = action.to as number | undefined;
     const points = action.params?.points as number | undefined;
@@ -317,7 +371,7 @@ export function describeEvidence(
   return [
     { label: 'Spend', value: spend },
     { label: 'Clicks', value: clicks },
-    { label: 'Orders', value: orders },
+    { label: 'Purchases (7d)', value: orders },
     { label: 'ACOS', value: acos },
   ];
 }

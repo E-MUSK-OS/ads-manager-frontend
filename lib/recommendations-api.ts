@@ -83,33 +83,6 @@ export async function bulkRulesAction(
   return res.results;
 }
 
-export async function exportRules(ids: number[]): Promise<{
-  version: number;
-  exported_at: string;
-  rules: Array<Record<string, unknown>>;
-}> {
-  return apiClient<{ version: number; exported_at: string; rules: Array<Record<string, unknown>> }>(
-    '/recommendations/rules/export',
-    {
-      method: 'POST',
-      body: JSON.stringify({ ids }),
-    }
-  );
-}
-
-export async function importRules(
-  adsAccountId: number,
-  rules: Array<Record<string, unknown>>
-): Promise<{ results: Array<{ name: string; status: 'created' | 'skipped' | 'invalid'; reason?: string }> }> {
-  return apiClient<{ results: Array<{ name: string; status: 'created' | 'skipped' | 'invalid'; reason?: string }> }>(
-    '/recommendations/rules/import',
-    {
-      method: 'POST',
-      body: JSON.stringify({ ads_account_id: adsAccountId, rules }),
-    }
-  );
-}
-
 export async function previewRule(
   adsAccountId: number,
   rule: RuleDraft
@@ -177,14 +150,27 @@ export async function reopenRecommendation(id: number): Promise<Recommendation> 
   });
 }
 
+export interface BulkApplyResultItem {
+  id: number;
+  status?: 'APPLIED' | 'FAILED' | 'STALE' | string;
+  success: boolean;
+  error?: string;
+  changes?: Array<{ field: string; from: unknown; to: unknown }>;
+  recommendation?: Recommendation;
+}
+
 export async function bulkRecommendationsAction(
   ids: number[],
-  action: 'APPLY' | 'DISMISS'
-): Promise<Array<{ id: number; success: boolean; error?: string; recommendation?: Recommendation }>> {
-  return apiClient<
-    Array<{ id: number; success: boolean; error?: string; recommendation?: Recommendation }>
-  >('/recommendations/bulk', {
+  action: 'APPLY' | 'DISMISS',
+  options?: { confirm?: boolean; idempotencyKey?: string }
+): Promise<Array<BulkApplyResultItem>> {
+  return apiClient<Array<BulkApplyResultItem>>('/recommendations/bulk', {
     method: 'POST',
-    body: JSON.stringify({ ids, action }),
+    body: JSON.stringify({
+      ids,
+      action,
+      confirm: options?.confirm,
+      idempotency_key: options?.idempotencyKey,
+    }),
   });
 }

@@ -268,10 +268,18 @@ export function useRecommendations() {
 
   // Bulk Apply
   const bulkApply = useCallback(
-    async (ids: number[]) => {
-      if (ids.length === 0) return;
+    async (ids: number[], idempotencyKey?: string) => {
+      if (ids.length === 0) return [];
+      const key =
+        idempotencyKey ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `apply-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
       try {
-        const res = await bulkRecommendationsAction(ids, 'APPLY');
+        const res = await bulkRecommendationsAction(ids, 'APPLY', {
+          confirm: true,
+          idempotencyKey: key,
+        });
         const appliedCount = res.filter((r) => r.success).length;
         const failedCount = res.filter((r) => !r.success).length;
 
@@ -291,6 +299,7 @@ export function useRecommendations() {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Bulk apply failed';
         toastError('Bulk apply failed', msg);
+        throw err;
       }
     },
     [success, toastError, notifyChanged, fetchSummary, fetchList]

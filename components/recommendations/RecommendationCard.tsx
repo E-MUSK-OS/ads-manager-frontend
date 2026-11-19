@@ -9,6 +9,7 @@ import {
   RotateCcw,
   AlertTriangle,
   ExternalLink,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover } from '@/components/ui/Popover';
@@ -222,6 +223,44 @@ export function RecommendationCard({
                   <span className="font-semibold text-text-main">{chip.value}</span>
                 </span>
               ))}
+
+              {rec.evidence?.confidence && (
+                <span
+                  className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${
+                    rec.evidence.confidence.level === 'HIGH'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : rec.evidence.confidence.level === 'MEDIUM'
+                      ? 'bg-sky-50 text-sky-700 border-sky-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
+                  }`}
+                >
+                  Confidence: {rec.evidence.confidence.level}
+                </span>
+              )}
+
+              {rec.conflicts_with && rec.conflicts_with.length > 0 && (
+                <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                  <AlertTriangle className="size-3 text-amber-600" />
+                  <span>Conflicts with #{rec.conflicts_with.join(', #')}</span>
+                </span>
+              )}
+
+              {rec.evidence?.date_window && (
+                <span className="text-[11px] text-text-muted font-sans ml-1">
+                  Evaluated {rec.evidence.date_window.start} – {rec.evidence.date_window.end}
+                </span>
+              )}
+
+              {rec.campaign_id && (
+                <Link
+                  href={`/campaigns/${rec.campaign_id}?tab=history`}
+                  target="_blank"
+                  className="text-[11px] text-primary hover:underline flex items-center gap-1 font-medium ml-1"
+                >
+                  <History className="size-3" />
+                  <span>History</span>
+                </Link>
+              )}
             </div>
           </div>
         </div>

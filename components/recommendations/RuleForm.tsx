@@ -30,6 +30,41 @@ interface RuleFormProps {
   onSubmit: (draft: RuleDraft) => Promise<{ rule: Rule; run?: { match_count?: number } | unknown } | Rule>;
 }
 
+export function getDefaultActionForParam(
+  param: AffectedParameter,
+  meta?: Meta | null
+): RuleAction {
+  const paramActions = meta?.actions?.[param];
+  if (paramActions) {
+    const entries = Object.entries(paramActions);
+    if (entries.length > 0) {
+      const [actionType, actionDef] = entries[0];
+      const defaultParams: Record<string, string | number | null> = {};
+      if (actionDef.params) {
+        for (const [k, p] of Object.entries(actionDef.params)) {
+          if (p.default !== undefined) {
+            defaultParams[k] = p.default;
+          } else if (p.type === 'enum' && p.options && p.options.length > 0) {
+            defaultParams[k] = p.options[0];
+          }
+        }
+      }
+      return { type: actionType, params: defaultParams };
+    }
+  }
+  // Safe defaults matching registry schema when meta is loading
+  if (param === 'TARGETING') {
+    return { type: 'INCREASE_BID', params: { pct: 10 } };
+  }
+  if (param === 'CAMPAIGN') {
+    return { type: 'INCREASE_BUDGET', params: { pct: 10 } };
+  }
+  if (param === 'SEARCH_TERM') {
+    return { type: 'ADD_AS_NEGATIVE', params: { match_type: 'NEGATIVE_EXACT', level: 'AD_GROUP' } };
+  }
+  return { type: '', params: {} };
+}
+
 export function RuleForm({
   adsAccountId,
   initialDraft,
@@ -46,7 +81,7 @@ export function RuleForm({
   // Form State
   const [name, setName] = useState<string>(initialDraft?.name || '');
   const [affectedParameter, setAffectedParameter] = useState<AffectedParameter>(
-    initialDraft?.affected_parameter || 'SEARCH_TERM'
+    initialDraft?.affected_parameter || 'TARGETING'
   );
   const [dateFilter, setDateFilter] = useState<string>(
     initialDraft?.date_filter || 'LAST_30_DAYS'
@@ -66,7 +101,8 @@ export function RuleForm({
     if (initialDraft?.actions && initialDraft.actions.length > 0) {
       return initialDraft.actions;
     }
-    return [{ type: 'add_negative_search_term', params: { match_type: 'EXACT' } }];
+    const defaultParam = initialDraft?.affected_parameter || 'TARGETING';
+    return [getDefaultActionForParam(defaultParam, meta)];
   });
 
   // Parameter change confirmation dialog
@@ -123,6 +159,8 @@ export function RuleForm({
 
     let hasBidChange = false;
     let hasPause = false;
+    let hasBudgetChange = false;
+    let hasCampaignPause = false;
 
     actions.forEach((act, idx) => {
       if (!act.type) return;
@@ -134,21 +172,37 @@ export function RuleForm({
       seenTypes.add(act.type);
 
       // Conflict checks
-      if (act.type.includes('bid')) {
+      if (act.type === 'INCREASE_BID' || act.type === 'DECREASE_BID') {
         if (hasBidChange) {
           errs[idx] = 'Conflicting bid action already present';
         }
         hasBidChange = true;
       }
-      if (act.type.includes('pause')) {
+      if (act.type === 'PAUSE_TARGET') {
         hasPause = true;
+      }
+      if (act.type === 'INCREASE_BUDGET' || act.type === 'DECREASE_BUDGET') {
+        if (hasBudgetChange) {
+          errs[idx] = 'Conflicting budget action already present';
+        }
+        hasBudgetChange = true;
+      }
+      if (act.type === 'PAUSE_CAMPAIGN') {
+        hasCampaignPause = true;
       }
     });
 
     if (hasPause && hasBidChange) {
       actions.forEach((act, idx) => {
-        if (act.type.includes('bid') || act.type.includes('pause')) {
+        if (act.type === 'INCREASE_BID' || act.type === 'DECREASE_BID' || act.type === 'PAUSE_TARGET') {
           errs[idx] = 'Cannot combine pausing with bid changes';
+        }
+      });
+    }
+    if (hasCampaignPause && hasBudgetChange) {
+      actions.forEach((act, idx) => {
+        if (act.type === 'INCREASE_BUDGET' || act.type === 'DECREASE_BUDGET' || act.type === 'PAUSE_CAMPAIGN') {
+          errs[idx] = 'Cannot combine pausing with budget changes';
         }
       });
     }
@@ -159,12 +213,22 @@ export function RuleForm({
   const hasActionConflict = Object.keys(actionErrors).length > 0;
 
   // Handle Affected Parameter change (with confirmation if actions exist)
+  const sanitizeConditions = (param: AffectedParameter) => {
+    if (param !== 'CAMPAIGN') {
+      setConditions((prev) =>
+        prev.map((c) => (c.metric === 'out_of_budget_days' ? { ...c, metric: 'spend' } : c))
+      );
+    }
+  };
+
   const handleAffectedParameterChange = (newParam: AffectedParameter) => {
     if (newParam === affectedParameter) return;
     if (actions.length > 0 && actions.some((a) => Boolean(a.type))) {
       setPendingParamChange(newParam);
     } else {
       setAffectedParameter(newParam);
+      sanitizeConditions(newParam);
+      setActions([getDefaultActionForParam(newParam, meta)]);
       setIsDirty(true);
     }
   };
@@ -172,7 +236,8 @@ export function RuleForm({
   const confirmParamChange = () => {
     if (pendingParamChange) {
       setAffectedParameter(pendingParamChange);
-      setActions([]); // clear incompatible actions
+      sanitizeConditions(pendingParamChange);
+      setActions([getDefaultActionForParam(pendingParamChange, meta)]);
       setPendingParamChange(null);
       setIsDirty(true);
     }
@@ -180,7 +245,14 @@ export function RuleForm({
 
   // Conditions management
   const maxConditions = meta?.limits?.max_conditions || 6;
-  const maxActions = meta?.limits?.max_actions || 4;
+  const maxActions =
+    affectedParameter === 'TARGETING' || affectedParameter === 'CAMPAIGN'
+      ? 1
+      : meta?.limits?.max_actions || 4;
+
+  const isDisplayOnly = useMemo(() => {
+    return conditions.some((c) => c.metric === 'out_of_budget_days');
+  }, [conditions]);
 
   const handleAddCondition = () => {
     if (conditions.length >= maxConditions) return;
@@ -208,13 +280,9 @@ export function RuleForm({
 
   // Actions management
   const handleAddAction = () => {
-    if (actions.length >= maxActions) return;
-    // Default action according to parameter
-    const availableTypes = meta?.actions?.[affectedParameter]
-      ? Object.keys(meta.actions[affectedParameter])
-      : [];
-    const firstType = availableTypes[0] || '';
-    setActions((prev) => [...prev, { type: firstType, params: {} }]);
+    if (isDisplayOnly || actions.length >= maxActions) return;
+    const defAction = getDefaultActionForParam(affectedParameter, meta);
+    setActions((prev) => [...prev, defAction]);
     setIsDirty(true);
   };
 
@@ -243,12 +311,33 @@ export function RuleForm({
       (c) => Boolean(c.metric) && Boolean(c.op) && c.value !== null && c.value !== undefined
     );
     if (!allCondsValid) return false;
+
+    if (isDisplayOnly) {
+      if (affectedParameter !== 'CAMPAIGN') return false;
+      const oob = conditions.find((c) => c.metric === 'out_of_budget_days');
+      if (oob) {
+        const val = Number(oob.value);
+        if (isNaN(val) || val < 1 || val > 14) return false;
+      }
+      return true;
+    }
+
     if (actions.length === 0) return false;
-    const allActionsValid = actions.every((a) => Boolean(a.type));
+    if ((affectedParameter === 'TARGETING' || affectedParameter === 'CAMPAIGN') && actions.length !== 1) {
+      return false;
+    }
+    const allActionsValid = actions.every((a) => {
+      if (!a.type) return false;
+      if (a.type === 'SET_BUDGET') {
+        const val = Number(a.params?.value ?? a.params?.budget ?? 0);
+        return !isNaN(val) && val >= 100;
+      }
+      return true;
+    });
     if (!allActionsValid) return false;
     if (hasActionConflict) return false;
     return true;
-  }, [name, nameCollision, conditions, actions, hasActionConflict]);
+  }, [name, nameCollision, conditions, actions, hasActionConflict, isDisplayOnly, affectedParameter]);
 
   // Current draft for preview
   const currentDraft: RuleDraft = useMemo(() => {
@@ -259,7 +348,7 @@ export function RuleForm({
       date_filter: dateFilter,
       min_clicks: minClicks,
       conditions,
-      actions,
+      actions: isDisplayOnly ? [] : actions,
       scope_mode: initialDraft?.scope_mode || 'ALL',
       campaign_ids: initialDraft?.campaign_ids || [],
     };
@@ -271,6 +360,7 @@ export function RuleForm({
     minClicks,
     conditions,
     actions,
+    isDisplayOnly,
     initialDraft?.scope_mode,
     initialDraft?.campaign_ids,
   ]);
@@ -388,6 +478,7 @@ export function RuleForm({
             value={affectedParameter}
             onChange={(e) => handleAffectedParameterChange(e.target.value as AffectedParameter)}
             options={affectedParameterOptions}
+            aria-label="Affected Parameter"
           />
         </div>
       </div>
@@ -405,6 +496,7 @@ export function RuleForm({
               setIsDirty(true);
             }}
             options={dateFilterOptions}
+            aria-label="Evaluation Date Window"
           />
           {showDateLagNotice && (
             <span className="text-[11px] text-amber-700 bg-amber-50 p-1.5 rounded border border-amber-200/60 leading-tight">
@@ -472,6 +564,7 @@ export function RuleForm({
                 condition={cond}
                 meta={meta}
                 currencySymbol={currencySymbol}
+                affectedParameter={affectedParameter}
                 error={err}
                 onChange={handleUpdateCondition}
                 onRemove={handleRemoveCondition}
@@ -493,41 +586,52 @@ export function RuleForm({
               Choose what actions should be recommended when conditions match.
             </p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={handleAddAction}
-            disabled={actions.length >= maxActions}
-            className="gap-1"
-          >
-            <Plus className="size-3" />
-            <span>Add Action</span>
-          </Button>
+          {!isDisplayOnly && actions.length < maxActions && (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={handleAddAction}
+              disabled={actions.length >= maxActions}
+              className="gap-1"
+            >
+              <Plus className="size-3" />
+              <span>Add Action</span>
+            </Button>
+          )}
         </div>
 
-        <div className="flex flex-col gap-2">
-          {actions.map((act, idx) => {
-            const err =
-              actionErrors[idx] ||
-              fieldErrors[`actions.${idx}.type`] ||
-              fieldErrors[`actions.${idx}`];
-            return (
-              <ActionRow
-                key={idx}
-                index={idx}
-                action={act}
-                affectedParameter={affectedParameter}
-                meta={meta}
-                currencySymbol={currencySymbol}
-                error={err}
-                onChange={handleUpdateAction}
-                onRemove={handleRemoveAction}
-                canRemove={actions.length > 1}
-              />
-            );
-          })}
-        </div>
+        {isDisplayOnly ? (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-900 text-xs">
+            <span className="font-semibold block">Display-Only Rule</span>
+            <span className="text-[11px] text-amber-800 mt-0.5 block">
+              Rules with &quot;Out of budget (days)&quot; condition are display-only. They generate recommendations for review only; no automated actions are performed.
+            </span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {actions.map((act, idx) => {
+              const err =
+                actionErrors[idx] ||
+                fieldErrors[`actions.${idx}.type`] ||
+                fieldErrors[`actions.${idx}`];
+              return (
+                <ActionRow
+                  key={idx}
+                  index={idx}
+                  action={act}
+                  affectedParameter={affectedParameter}
+                  meta={meta}
+                  currencySymbol={currencySymbol}
+                  error={err}
+                  onChange={handleUpdateAction}
+                  onRemove={handleRemoveAction}
+                  canRemove={affectedParameter === 'SEARCH_TERM' && actions.length > 1}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Live Preview Rail */}

@@ -6,11 +6,13 @@ import {
   Layers,
   Check,
   X,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RecommendationCard } from './RecommendationCard';
 import { RecommendationFilters } from './RecommendationFilters';
+import { ReviewModal } from './ReviewModal';
 import { useRecommendations } from './useRecommendations';
 import { useRules } from './useRules';
 import { useRecommendationMeta } from './useRecommendationMeta';
@@ -57,6 +59,7 @@ export function RecommendationsTab({ onGoToConfiguration }: RecommendationsTabPr
   // Bulk confirmation dialog state
   const [showBulkApplyConfirm, setShowBulkApplyConfirm] = useState<boolean>(false);
   const [showBulkDismissConfirm, setShowBulkDismissConfirm] = useState<boolean>(false);
+  const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
 
   // Bulk action type counts breakdown for confirmation dialog
   const bulkActionBreakdown = React.useMemo(() => {
@@ -165,8 +168,16 @@ export function RecommendationsTab({ onGoToConfiguration }: RecommendationsTabPr
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowBulkApplyConfirm(true)}
+              onClick={() => setShowReviewModal(true)}
               className="px-3 py-1 rounded bg-primary hover:bg-primary/90 text-white font-medium transition-colors flex items-center gap-1.5"
+            >
+              <Eye className="size-3.5" />
+              <span>Review ({selectedIds.size})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBulkApplyConfirm(true)}
+              className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-colors flex items-center gap-1.5"
             >
               <Check className="size-3.5" />
               <span>Apply selected</span>
@@ -354,6 +365,18 @@ export function RecommendationsTab({ onGoToConfiguration }: RecommendationsTabPr
           </div>
         </div>
       )}
+
+      {/* Review Modal */}
+      <ReviewModal
+        open={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        selectedRecs={items.filter((i) => selectedIds.has(i.id))}
+        currencySymbol={currencySymbol}
+        onApply={async (ids) => {
+          return await bulkApply(ids);
+        }}
+        isApplying={processingIds.size > 0}
+      />
 
       {/* Bulk Apply Confirmation Dialog */}
       <ConfirmDialog

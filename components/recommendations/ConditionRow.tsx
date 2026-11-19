@@ -1,14 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Select } from '@/components/ui/Select';
 import { getMetricUnitAdornment } from './describe';
-import type { Condition, Meta, Operator } from '@/lib/types/recommendation';
+import type { Condition, Meta, Operator, AffectedParameter } from '@/lib/types/recommendation';
 
 interface ConditionRowProps {
   condition: Condition;
   index: number;
   meta: Meta | null;
   currencySymbol: string;
+  affectedParameter?: AffectedParameter;
   error?: string;
   onChange: (index: number, updated: Condition) => void;
   onRemove: (index: number) => void;
@@ -20,17 +21,29 @@ export function ConditionRow({
   index,
   meta,
   currencySymbol,
+  affectedParameter,
   error,
   onChange,
   onRemove,
   canRemove,
 }: ConditionRowProps) {
-  const metricOptions = meta?.metrics
-    ? Object.entries(meta.metrics).map(([key, val]) => ({
+  const metricOptions = useMemo(() => {
+    if (!meta?.metrics) return [];
+    return Object.entries(meta.metrics)
+      .filter(([key]) => {
+        if (key === 'out_of_budget_days') {
+          return affectedParameter === 'CAMPAIGN';
+        }
+        if (key === 'target_spend_share' || key === 'target_sales_share') {
+          return affectedParameter === 'TARGETING' || affectedParameter === 'SEARCH_TERM';
+        }
+        return true;
+      })
+      .map(([key, val]) => ({
         value: key,
         label: val.label,
-      }))
-    : [];
+      }));
+  }, [meta?.metrics, affectedParameter]);
 
   const operatorOptions = meta?.operators
     ? Object.entries(meta.operators).map(([key, val]) => ({

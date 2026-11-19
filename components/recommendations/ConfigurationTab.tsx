@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { RuleTable } from './RuleTable';
 import { AddRecommendationModal } from './AddRecommendationModal';
 import { ScopeModal } from './ScopeModal';
-import { ImportExportMenu } from './ImportExportMenu';
 import { useRules, type StatusFilter } from './useRules';
 import { useRecommendationMeta } from './useRecommendationMeta';
 import { useActiveAccount } from '@/lib/useActiveAccount';
@@ -81,14 +80,6 @@ export function ConfigurationTab() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Import / Export Menu */}
-          <ImportExportMenu
-            adsAccountId={account?.id ?? null}
-            selectedIds={Array.from(selectedIds)}
-            onDuplicate={handleDuplicate}
-            onImportComplete={refreshRules}
-          />
-
           {/* Add Recommendation Button */}
           <Button
             size="sm"

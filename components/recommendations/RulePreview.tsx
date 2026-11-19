@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Loader2, Sparkles, Info } from 'lucide-react';
+import { Loader2, Sparkles, Info, Lightbulb } from 'lucide-react';
 import { previewRule } from '@/lib/recommendations-api';
 import type { RuleDraft, RulePreviewResponse, Meta } from '@/lib/types/recommendation';
 
@@ -58,7 +58,7 @@ export function RulePreview({
       } finally {
         setLoading(false);
       }
-    }, isPreviewable ? 600 : 0);
+    }, isPreviewable ? 500 : 0);
 
     return () => {
       if (timerRef.current) {
@@ -84,7 +84,7 @@ export function RulePreview({
   }
 
   return (
-    <div className="p-3.5 rounded-md bg-slate-50/70 border border-border-dim flex flex-col gap-2">
+    <div className="p-3.5 rounded-md bg-slate-50/70 border border-border-dim flex flex-col gap-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold text-text-main">
           <Sparkles className="size-3.5 text-primary" />
@@ -92,14 +92,36 @@ export function RulePreview({
           {loading && <Loader2 className="size-3 animate-spin text-text-muted" />}
         </div>
         {data && (
-          <span className="text-xs font-mono font-medium text-primary">
-            Would match {data.match_count} item{data.match_count === 1 ? '' : 's'} right now
+          <span className={`text-xs font-mono font-medium ${data.match_count > 0 ? 'text-primary' : 'text-text-muted'}`}>
+            {data.match_count > 0
+              ? `Would match ${data.match_count} item${data.match_count === 1 ? '' : 's'} right now`
+              : '0 items match right now'}
           </span>
         )}
       </div>
 
       {error && <p className="text-xs text-danger">{error}</p>}
 
+      {/* Funnel explanation / "Why no results?" summary */}
+      {data && data.funnel && (
+        <div className="flex flex-col gap-2 pt-1">
+          {data.funnel.summary_text && (
+            <div className="text-xs text-text-main leading-relaxed bg-surface/80 p-2.5 rounded border border-border-dim/60">
+              {data.funnel.summary_text}
+            </div>
+          )}
+
+          {/* Plain tip based on the first condition that removes the most items */}
+          {data.funnel.tip && data.match_count === 0 && (
+            <div className="flex items-start gap-2 p-2 rounded bg-amber-50/80 border border-amber-200/80 text-xs text-amber-800">
+              <Lightbulb className="size-3.5 shrink-0 text-amber-600 mt-0.5" />
+              <span>{data.funnel.tip}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sample matched items */}
       {data && data.sample && data.sample.length > 0 && (
         <div className="mt-1 flex flex-col gap-1.5">
           <div className="text-[11px] font-medium text-text-muted uppercase tracking-wider">
@@ -129,7 +151,7 @@ export function RulePreview({
         </div>
       )}
 
-      {data && data.sample && data.sample.length === 0 && !loading && (
+      {data && (!data.funnel || !data.funnel.summary_text) && data.sample && data.sample.length === 0 && !loading && (
         <p className="text-xs text-text-muted italic">
           No current entities in your account match these conditions right now.
         </p>

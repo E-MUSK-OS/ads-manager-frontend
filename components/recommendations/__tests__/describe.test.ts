@@ -34,17 +34,17 @@ const mockMetaINR: Meta = {
   },
   actions: {
     SEARCH_TERM: {
-      add_negative_search_term: {
+      ADD_AS_NEGATIVE: {
         label: 'Add as Negative Targeting',
-        params: { match_type: { type: 'enum', options: ['EXACT', 'PHRASE'] } },
+        params: { match_type: { type: 'enum', options: ['NEGATIVE_EXACT', 'NEGATIVE_PHRASE'] } },
       },
     },
     TARGETING: {
-      decrease_bid: {
+      DECREASE_BID: {
         label: 'Decrease bid',
-        params: { percentage: { type: 'percent', min: 1, max: 90 } },
+        params: { pct: { type: 'percent', min: 1, max: 90 } },
       },
-      pause_target: {
+      PAUSE_TARGET: {
         label: 'Pause targeting',
         params: {},
       },
@@ -114,23 +114,23 @@ describe('describe.ts helpers', () => {
   describe('describeRuleAction', () => {
     it('formats negative search term action with match type', () => {
       const action: RuleAction = {
-        type: 'add_negative_search_term',
-        params: { match_type: 'EXACT' },
+        type: 'ADD_AS_NEGATIVE',
+        params: { match_type: 'NEGATIVE_EXACT' },
       };
       expect(describeRuleAction(action, mockMetaINR)).toBe('Add as Negative Targeting · Exact');
     });
 
     it('formats decrease bid action with percentage', () => {
       const action: RuleAction = {
-        type: 'decrease_bid',
-        params: { percentage: 20 },
+        type: 'DECREASE_BID',
+        params: { pct: 20 },
       };
       expect(describeRuleAction(action, mockMetaINR)).toBe('Decrease bid by 20%');
     });
 
     it('formats pause target action', () => {
       const action: RuleAction = {
-        type: 'pause_target',
+        type: 'PAUSE_TARGET',
         params: {},
       };
       expect(describeRuleAction(action, mockMetaINR)).toBe('Pause');
@@ -138,8 +138,8 @@ describe('describe.ts helpers', () => {
 
     it('formats increase budget action', () => {
       const action: RuleAction = {
-        type: 'increase_budget',
-        params: { percentage: 20 },
+        type: 'INCREASE_BUDGET',
+        params: { pct: 20 },
       };
       expect(describeRuleAction(action, mockMetaINR)).toBe('Increase daily budget by 20%');
     });
@@ -156,6 +156,20 @@ describe('describe.ts helpers', () => {
         params: { points: 15 },
       };
       expect(describeRuleAction(decAction, mockMetaINR)).toBe('Decrease placement adjustment by 15%');
+    });
+
+    it('formats set budget, enable campaign and amount-mode actions', () => {
+      const setBudgetAction: RuleAction = { type: 'SET_BUDGET', params: { value: 250 } };
+      expect(describeRuleAction(setBudgetAction, mockMetaINR, '₹')).toBe('Set daily budget to ₹250');
+
+      const enableAction: RuleAction = { type: 'ENABLE_CAMPAIGN', params: {} };
+      expect(describeRuleAction(enableAction, mockMetaINR, '₹')).toBe('Enable campaign');
+
+      const amountBidAction: RuleAction = { type: 'INCREASE_BID', params: { mode: 'amount', value: 5 } };
+      expect(describeRuleAction(amountBidAction, mockMetaINR, '₹')).toBe('Increase bid by ₹5');
+
+      const amountBudgetAction: RuleAction = { type: 'DECREASE_BUDGET', params: { mode: 'amount', value: 50 } };
+      expect(describeRuleAction(amountBudgetAction, mockMetaINR, '₹')).toBe('Decrease daily budget by ₹50');
     });
   });
 
@@ -189,8 +203,8 @@ describe('describe.ts helpers', () => {
   describe('describeRecommendationAction', () => {
     it('formats negative keyword sentence', () => {
       const action: SuggestedAction = {
-        type: 'add_negative_search_term',
-        params: { match_type: 'exact' },
+        type: 'ADD_AS_NEGATIVE',
+        params: { match_type: 'NEGATIVE_EXACT' },
       };
       const rec: Partial<Recommendation> = {
         entity_label: 'yoga mat cheap',
@@ -203,8 +217,8 @@ describe('describe.ts helpers', () => {
 
     it('formats bid decrease sentence', () => {
       const action: SuggestedAction = {
-        type: 'decrease_bid',
-        params: { percentage: 20 },
+        type: 'DECREASE_BID',
+        params: { pct: 20 },
         from: 6.0,
         to: 4.8,
       };
@@ -215,7 +229,7 @@ describe('describe.ts helpers', () => {
 
     it('formats pause keyword sentence', () => {
       const action: SuggestedAction = {
-        type: 'pause_keyword',
+        type: 'PAUSE_TARGET',
         params: {},
       };
       const rec: Partial<Recommendation> = {
@@ -226,8 +240,8 @@ describe('describe.ts helpers', () => {
 
     it('formats budget increase sentence', () => {
       const action: SuggestedAction = {
-        type: 'increase_budget',
-        params: { percentage: 20 },
+        type: 'INCREASE_BUDGET',
+        params: { pct: 20 },
         from: 500,
         to: 600,
       };
@@ -272,10 +286,10 @@ describe('describe.ts helpers', () => {
       expect(chips).toEqual([
         { label: 'Spend', value: '₹120' },
         { label: 'Clicks', value: '24' },
-        { label: 'Orders', value: '0' },
+        { label: 'Purchases (7d)', value: '0' },
         { label: 'ACOS', value: '—' },
       ]);
-      expect(describeEvidenceSummary(evidence, '₹')).toBe('Spend ₹120 · Clicks 24 · Orders 0 · ACOS —');
+      expect(describeEvidenceSummary(evidence, '₹')).toBe('Spend ₹120 · Clicks 24 · Purchases (7d) 0 · ACOS —');
     });
 
     it('formats projection line correctly', () => {

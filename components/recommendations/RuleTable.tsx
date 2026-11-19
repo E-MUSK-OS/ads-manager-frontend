@@ -154,13 +154,6 @@ export function RuleTable({
             </button>
             <button
               type="button"
-              onClick={onExportSelected}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-white font-medium transition-colors"
-            >
-              Export
-            </button>
-            <button
-              type="button"
               onClick={onClearSelection}
               className="ml-2 text-slate-400 hover:text-white underline text-[11px]"
             >
@@ -282,6 +275,17 @@ export function RuleTable({
                     <span className="font-semibold text-text-main block leading-tight">
                       {rule.name}
                     </span>
+                    {rule.last_funnel?.config_status_text ? (
+                      <div className="mt-1 text-[11px] text-text-muted leading-snug">
+                        <span>{rule.last_funnel.config_status_text}</span>
+                      </div>
+                    ) : rule.last_run_at ? (
+                      <div className="mt-1 text-[11px] text-text-muted leading-snug">
+                        <span>
+                          Evaluated {formatDateIN(rule.last_run_at)}: {rule.last_match_count} recommendations
+                        </span>
+                      </div>
+                    ) : null}
                   </td>
 
                   {/* Affected Parameter */}

@@ -29,6 +29,7 @@ export interface Rule {
   last_run_at: string | null;
   last_match_count: number;
   open_count: number;
+  last_funnel?: RuleFunnel | null;
 }
 
 export interface RuleDraft {
@@ -96,11 +97,30 @@ export interface Projection {
   monthly_equivalent: number;
 }
 
+export interface ConfidenceInfo {
+  clicks: number;
+  reference_cvr: number;
+  p_value: number;
+  level: 'LOW_DATA' | 'MEDIUM' | 'HIGH';
+  label: string;
+}
+
+export interface DateWindowInfo {
+  start: string;
+  end: string;
+  days: number;
+  label: string;
+  has_conversion_metrics?: boolean;
+}
+
 export interface Evidence {
   metrics: Record<string, number | null>;
-  matched: Array<{ metric: string; op: string; threshold: number; actual: number | null }>;
+  matched: Array<{ metric: string; op: string; threshold: number; actual: number | null; target_acos?: number; offset?: number }>;
   current: Record<string, string | number | null>;
   projection?: Projection | null;
+  date_window?: DateWindowInfo;
+  confidence?: ConfidenceInfo;
+  tracked_since?: string;
 }
 
 export interface SuggestedAction {
@@ -138,6 +158,7 @@ export interface Recommendation {
     dismiss_reason?: string;
     error?: string;
   } | null;
+  conflicts_with?: number[];
 }
 
 export interface RecommendationsSummary {
@@ -159,8 +180,48 @@ export interface RecommendationsListResponse {
   };
 }
 
+export interface RuleFunnelCondition {
+  index: number;
+  metric: string;
+  op: string;
+  threshold: number;
+  passed: number;
+  failed: number;
+}
+
+export interface RuleFunnel {
+  entities_in_scope: number;
+  enabled_campaigns_count: number;
+  total_campaigns_count: number;
+  excluded_campaign_not_enabled: number;
+  excluded_target_not_enabled: number;
+  no_traffic: number;
+  below_min_clicks: number;
+  conditions: RuleFunnelCondition[];
+  skipped_bid_unknown: number;
+  skipped_already_at_limit: number;
+  skipped_no_target_acos: number;
+  final_candidates: number;
+  suppressed_already_open: number;
+  suppressed_cooldown: number;
+  suppressed: number;
+  created_open: number;
+  date_window: {
+    start: string;
+    end: string;
+    days: number;
+    label: string;
+  };
+  evaluated_at: string;
+  summary_text?: string;
+  config_status_text?: string;
+  tip?: string;
+  notice?: string;
+}
+
 export interface RulePreviewResponse {
   match_count: number;
   evaluated_entities: number;
   sample: Array<Record<string, unknown>>;
+  funnel?: RuleFunnel | null;
 }

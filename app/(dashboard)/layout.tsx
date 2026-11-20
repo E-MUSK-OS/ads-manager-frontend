@@ -4,7 +4,7 @@ import { clearTokens } from '@/lib/auth';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  Target, Settings, LogOut, ChevronDown, Sparkles
+  Target, Settings, LogOut, ChevronDown, Sparkles, SlidersHorizontal
 } from 'lucide-react';
 import { useActiveAccount } from '@/lib/useActiveAccount';
 import { getRecommendationsSummary } from '@/lib/recommendations-api';
@@ -122,6 +122,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navLinks = [
     { href: '/campaigns', label: 'Campaigns', icon: Target },
     { href: '/recommendations', label: 'Recommendations', icon: Sparkles, badge: openCount },
+    { href: '/rules', label: 'Rules', icon: SlidersHorizontal },
   ];
 
   return (
@@ -190,7 +191,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Dynamic Page Content injected here on top of the graph paper background */}
         <div className="flex-1 overflow-auto relative">
-          <div className="absolute inset-0 bg-graph-paper pointer-events-none opacity-60"></div>
+          <div className="fixed inset-0 bg-graph-paper pointer-events-none opacity-60 z-0"></div>
           <div className="relative z-10 p-8 min-h-full">
             {children}
           </div>

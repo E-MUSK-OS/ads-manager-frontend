@@ -130,7 +130,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Sidebar System */}
       <aside className="w-64 bg-surface border-r border-border-dim flex flex-col z-20 shadow-sm">
         <div className="h-14 flex items-center px-6 border-b border-border-dim">
-          <div className="font-mono font-bold tracking-tight text-lg text-primary">AdsManager</div>
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 group cursor-pointer"
+          >
+            <div className="size-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-xs">
+              <SlidersHorizontal className="size-3.5" />
+            </div>
+            <span className="font-mono font-bold tracking-tight text-lg text-slate-900 group-hover:text-primary transition-colors">
+              Ads<span className="text-primary">Manager</span>
+            </span>
+          </Link>
         </div>
         
         <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1">

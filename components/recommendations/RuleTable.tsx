@@ -97,12 +97,12 @@ export function RuleTable({
         <p className="text-xs text-text-muted mt-1 max-w-md">
           Define automated recommendation logic to continually audit search terms, bids, and targeting.
         </p>
-        <div className="flex items-center gap-3 mt-5">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2.5 sm:gap-3 mt-5 w-full max-w-xs sm:max-w-none">
           <Button
             size="sm"
             variant="outline"
             onClick={onBrowseTemplates}
-            className="gap-1.5"
+            className="gap-1.5 w-full sm:w-auto justify-center"
           >
             <Layers className="size-3.5" />
             <span>Browse templates</span>
@@ -110,7 +110,7 @@ export function RuleTable({
           <Button
             size="sm"
             onClick={onBuildCustom}
-            className="gap-1.5"
+            className="gap-1.5 w-full sm:w-auto justify-center"
           >
             <Wand2 className="size-3.5" />
             <span>Build custom rule</span>

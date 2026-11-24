@@ -199,7 +199,7 @@ export function Step4Negatives({
 
       {/* CARD 1: Negative Keywords */}
       <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-5 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-border-dim">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border-dim">
           <div>
             <span className="font-bold uppercase tracking-wider text-slate-800 text-xs block">
               Negative Keyword Targeting
@@ -220,7 +220,7 @@ export function Step4Negatives({
         </div>
 
         {/* Match Type selection */}
-        <div className="flex items-center gap-4 text-[11px]">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px]">
           <span className="text-slate-500 font-semibold">Match Type:</span>
           {(['NEGATIVE_EXACT', 'NEGATIVE_PHRASE'] as NegMatch[]).map((m) => (
             <label key={m} className="flex items-center gap-1.5 cursor-pointer">
@@ -339,7 +339,7 @@ export function Step4Negatives({
 
       {/* CARD 2: Negative Products & Brands */}
       <div className="bg-surface border border-border-dim rounded-md shadow-2xs p-5 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-border-dim">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border-dim">
           <div>
             <span className="font-bold uppercase tracking-wider text-slate-800 text-xs block">
               Negative Product & Brand Targeting
@@ -359,7 +359,7 @@ export function Step4Negatives({
           )}
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setActiveProductTab('brands')}

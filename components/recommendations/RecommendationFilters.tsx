@@ -81,7 +81,7 @@ export function RecommendationFilters({
   return (
     <div className="flex flex-col gap-3 p-3 bg-surface rounded-lg border border-border-dim">
       {/* Top: Status Segmented Control */}
-      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md self-start overflow-x-auto">
+      <div className="grid grid-cols-2 sm:flex sm:items-center gap-1 bg-slate-100 p-1 rounded-md w-full sm:w-auto sm:self-start">
         {statusList.map((st) => {
           const isActive = status === st.key;
           const count = counts[st.key] || 0;
@@ -91,11 +91,11 @@ export function RecommendationFilters({
               key={st.key}
               type="button"
               onClick={() => onUpdate({ status: st.key.toLowerCase(), page: 1 })}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all select-none ${
+              className={`flex items-center justify-center sm:justify-start gap-1.5 px-3 py-1.5 sm:py-1 text-xs font-medium rounded-md transition-all select-none cursor-pointer ${
                 isActive
                   ? 'bg-surface text-text-main shadow-xs font-semibold'
                   : 'text-text-muted hover:text-text-main'
-              }`}
+              } ${st.key === 'FAILED' ? 'col-span-2 sm:col-span-1' : ''}`}
             >
               <span>{st.label}</span>
               <span
@@ -111,7 +111,7 @@ export function RecommendationFilters({
       </div>
 
       {/* Bottom: Secondary Filters & Search */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap lg:flex-nowrap items-stretch sm:items-center gap-2.5 pt-1">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
           <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />

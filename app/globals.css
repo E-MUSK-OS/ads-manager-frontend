@@ -205,6 +205,11 @@
   background-color: rgba(245, 158, 11, 0.15) !important;
 }
 
+[data-theme="dark"] [class*="bg-blue-50"],
+[data-theme="dark"] [class*="bg-blue-100"] {
+  background-color: rgba(59, 130, 246, 0.18) !important;
+}
+
 /* Gradients in dark mode (prevent white/silver flashes or light bands, excluding clipped text) */
 [data-theme="dark"] [class*="bg-gradient-to-"]:not([class*="bg-clip-text"]):not(.bg-clip-text) {
   background-image: linear-gradient(to bottom, #111827 0%, #0f172a 50%, #0b0f19 100%) !important;
@@ -297,7 +302,7 @@
 [data-theme="dark"] [class*="text-blue-800"],
 [data-theme="dark"] [class*="text-blue-900"],
 [data-theme="dark"] [class*="text-blue-950"] {
-  color: #60a5fa !important;
+  color: #93c5fd !important;
 }
 
 [data-theme="dark"] [class*="text-purple-600"],
@@ -353,6 +358,12 @@
 [data-theme="dark"] [class*="border-amber-200"],
 [data-theme="dark"] [class*="border-amber-300"] {
   border-color: rgba(245, 158, 11, 0.35) !important;
+}
+
+[data-theme="dark"] [class*="border-blue-100"],
+[data-theme="dark"] [class*="border-blue-200"],
+[data-theme="dark"] [class*="border-blue-300"] {
+  border-color: rgba(59, 130, 246, 0.45) !important;
 }
 
 /* Hovers */

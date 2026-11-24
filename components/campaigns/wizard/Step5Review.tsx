@@ -176,7 +176,7 @@ export function Step5Review({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
           <div>
             <span className="text-slate-400 block text-[10px] uppercase">Name</span>
             <span className="font-semibold text-slate-900 truncate block">{draft.details.name}</span>
@@ -219,7 +219,7 @@ export function Step5Review({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
           {draft.products.selected.slice(0, 6).map((p) => (
             <div
               key={p.id}
@@ -328,7 +328,7 @@ export function Step5Review({
           </button>
         </div>
 
-        <div className="text-[11px] text-slate-600 flex items-center gap-4">
+        <div className="text-[11px] text-slate-600 flex flex-wrap items-center gap-2 sm:gap-4">
           <span>{draft.negatives.keywords.length} negative keywords</span>
           <span>•</span>
           <span>{draft.negatives.brands.length} excluded brands</span>
@@ -339,12 +339,12 @@ export function Step5Review({
 
       {/* Action Buttons */}
       <div className="pt-4 border-t border-border-dim flex flex-wrap items-center justify-end gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
           <button
             type="button"
             disabled={!canLaunch || submitting}
             onClick={() => onLaunch('PAUSED')}
-            className="px-4 py-2 border border-border-dim rounded hover:bg-slate-50 font-medium text-slate-800 disabled:opacity-40"
+            className="w-full sm:w-auto px-4 py-2 border border-border-dim rounded hover:bg-slate-50 font-medium text-slate-800 disabled:opacity-40 text-center"
           >
             Launch as paused
           </button>
@@ -352,7 +352,7 @@ export function Step5Review({
             type="button"
             disabled={!canLaunch || submitting}
             onClick={() => onLaunch('ENABLED')}
-            className="px-6 py-2 bg-primary text-white rounded font-bold shadow-xs hover:bg-indigo-800 disabled:opacity-40 flex items-center gap-2"
+            className="w-full sm:w-auto px-6 py-2 bg-primary text-white rounded font-bold shadow-xs hover:bg-indigo-800 disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {submitting && <RotateCw className="w-3.5 h-3.5 animate-spin" />}
             <span>Launch campaign</span>

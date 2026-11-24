@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -149,6 +149,27 @@ export function CampaignTable({
   const [expandedIds, setExpandedIds] = useState<number[]>([]);
   const [adGroupsData, setAdGroupsData] = useState<Record<number, AdGroupItem[]>>({});
   const [adGroupsLoading, setAdGroupsLoading] = useState<Record<number, boolean>>({});
+
+  // Measure table scroll container width for bounding expandable child rows
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+
+  useEffect(() => {
+    const el = tableContainerRef.current;
+    if (!el) return;
+    const updateWidth = () => {
+      if (el) setContainerWidth(el.clientWidth);
+    };
+    updateWidth();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(updateWidth);
+      ro.observe(el);
+      return () => ro.disconnect();
+    } else {
+      window.addEventListener('resize', updateWidth);
+      return () => window.removeEventListener('resize', updateWidth);
+    }
+  }, []);
 
   // Popover inline edit states
   const [editingNameId, setEditingNameId] = useState<number | null>(null);
@@ -317,8 +338,8 @@ export function CampaignTable({
   return (
     <div className="bg-surface border border-border-dim rounded-md shadow-2xs flex flex-col font-mono text-xs text-text-main">
       {/* Top Table Toolbar (4.4) */}
-      <div className="p-3 border-b border-border-dim flex flex-wrap items-center justify-between gap-3 bg-slate-50/50">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="p-3 border-b border-border-dim flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-slate-50/50">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm tracking-wide uppercase text-slate-800">
               Campaigns
@@ -326,7 +347,7 @@ export function CampaignTable({
           </div>
 
           {/* Search box with clear icon */}
-          <div className="relative w-64">
+          <div className="relative w-full sm:w-64">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -359,7 +380,7 @@ export function CampaignTable({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-between sm:justify-start md:justify-end">
           {/* Hourly Data button (7.4: honest 'Hourly data is not connected' state) */}
           <button
             type="button"
@@ -372,7 +393,7 @@ export function CampaignTable({
             title="Hourly Performance Data"
           >
             <Clock className="w-3.5 h-3.5 text-slate-600" />
-            <span>Hourly Data</span>
+            <span className="hidden xs:inline">Hourly Data</span>
           </button>
 
           {/* Columns Chooser */}
@@ -381,7 +402,7 @@ export function CampaignTable({
           {/* Add Campaign Button */}
           <Link
             href="/campaigns/new"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-colors shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Campaign</span>
@@ -406,13 +427,16 @@ export function CampaignTable({
       )}
 
       {/* Table Area with Strict 5-Layer Z-Index & Sticky Column Matrix */}
-      <div className="relative overflow-x-auto bg-white border border-slate-300 rounded-md shadow-2xs">
+      <div
+        ref={tableContainerRef}
+        className="relative overflow-x-auto bg-white border border-slate-300 rounded-md shadow-2xs"
+      >
         <table className="w-full text-left border-collapse">
           {/* Header */}
           <thead className="bg-slate-100 border-b border-slate-300 text-[11px] font-mono uppercase tracking-wider text-slate-800 sticky top-0 z-20">
             <tr>
               {/* Sticky Col 1: Checkbox */}
-              <th className="py-2.5 px-3 w-10 min-w-[40px] max-w-[40px] sticky left-0 z-30 bg-slate-100">
+              <th className="py-2.5 px-3 w-10 min-w-[40px] max-w-[40px] lg:sticky lg:left-0 lg:z-30 bg-slate-100">
                 <input
                   type="checkbox"
                   aria-label="Select all campaigns"
@@ -423,12 +447,12 @@ export function CampaignTable({
               </th>
 
               {/* Sticky Col 2: State Switch */}
-              <th className="py-2.5 px-2 w-14 min-w-[56px] max-w-[56px] sticky left-[40px] z-30 bg-slate-100 text-center">
+              <th className="py-2.5 px-2 w-14 min-w-[56px] max-w-[56px] lg:sticky lg:left-[40px] lg:z-30 bg-slate-100 text-center">
                 State
               </th>
 
               {/* Sticky Col 3: Campaign Name */}
-              <th className="py-2.5 px-3 min-w-[260px] max-w-[320px] sticky left-[96px] z-30 bg-slate-100 shadow-[1px_0_0_0_#cbd5e1]">
+              <th className="py-2.5 px-3 min-w-[200px] sm:min-w-[240px] lg:min-w-[260px] max-w-[320px] lg:sticky lg:left-[96px] lg:z-30 bg-slate-100 lg:shadow-[1px_0_0_0_#cbd5e1]">
                 <button
                   type="button"
                   onClick={() => handleHeaderSort('name')}
@@ -636,7 +660,7 @@ export function CampaignTable({
                     >
                       {/* Sticky Col 1: Checkbox (z-10) */}
                       <td
-                        className="py-2.5 px-3 sticky left-0 z-10 bg-white group-hover:bg-slate-50/80"
+                        className="py-2.5 px-3 lg:sticky lg:left-0 lg:z-10 bg-white group-hover:bg-slate-50/80"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
@@ -650,7 +674,7 @@ export function CampaignTable({
 
                       {/* Sticky Col 2: State Switch (z-10, Fixes Glitch 10) */}
                       <td
-                        className="py-2.5 px-2 sticky left-[40px] z-10 bg-white group-hover:bg-slate-50/80 text-center"
+                        className="py-2.5 px-2 lg:sticky lg:left-[40px] lg:z-10 bg-white group-hover:bg-slate-50/80 text-center"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div
@@ -676,7 +700,7 @@ export function CampaignTable({
 
                       {/* Sticky Col 3: Campaign Name (z-10 with shadow border) */}
                       <td
-                        className="py-2.5 px-3 sticky left-[96px] z-10 bg-white group-hover:bg-slate-50/80 shadow-[1px_0_0_0_var(--color-border-dim)]"
+                        className="py-2.5 px-3 lg:sticky lg:left-[96px] lg:z-10 bg-white group-hover:bg-slate-50/80 lg:shadow-[1px_0_0_0_var(--color-border-dim)]"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center justify-between gap-1.5">
@@ -695,7 +719,7 @@ export function CampaignTable({
                             </button>
                             <Link
                               href={`/campaigns/${c.id}`}
-                              className="font-medium text-slate-900 hover:text-primary transition-colors hover:underline truncate max-w-[220px]"
+                              className="font-medium text-slate-900 hover:text-primary transition-colors hover:underline truncate max-w-[160px] sm:max-w-[200px] lg:max-w-[220px]"
                               title={c.name}
                             >
                               {c.name}
@@ -1225,8 +1249,13 @@ export function CampaignTable({
                     {/* Expandable nested ad groups row */}
                     {isExpanded && (
                       <tr className="bg-slate-50/70 border-y border-border-dim">
-                        <td colSpan={25} className="py-3 px-8">
-                          <div className="border border-border-dim rounded bg-white p-3 shadow-2xs">
+                        <td colSpan={25} className="py-3 px-2 sm:px-4 lg:px-8">
+                          <div
+                            className="lg:sticky lg:left-8 border border-border-dim rounded bg-white p-3 shadow-2xs"
+                            style={{
+                              maxWidth: containerWidth ? `${Math.max(280, containerWidth - (containerWidth < 640 ? 16 : 48))}px` : '100%',
+                            }}
+                          >
                             <span className="font-bold text-[11px] uppercase tracking-wider text-slate-500 block mb-2">
                               Ad Groups in &ldquo;{c.name}&rdquo;
                             </span>
@@ -1235,44 +1264,46 @@ export function CampaignTable({
                             ) : !adGroupsData[c.id] || adGroupsData[c.id].length === 0 ? (
                               <div className="py-2 text-slate-400 text-center">No ad groups found</div>
                             ) : (
-                              <table className="w-full text-xs font-mono">
-                                <thead className="border-b border-border-dim text-[10px] uppercase text-slate-400">
-                                  <tr>
-                                    <th className="py-1 px-2 text-left">Name</th>
-                                    <th className="py-1 px-2 text-left">State</th>
-                                    <th className="py-1 px-2 text-right">Default Bid</th>
-                                    <th className="py-1 px-2 text-right">Impr.</th>
-                                    <th className="py-1 px-2 text-right">Clicks</th>
-                                    <th className="py-1 px-2 text-right">Spend</th>
-                                    <th className="py-1 px-2 text-right">Sales</th>
-                                    <th className="py-1 px-2 text-right">Orders</th>
-                                    <th className="py-1 px-2 text-right">ACOS</th>
-                                    <th className="py-1 px-2 text-right">ROAS</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border-dim">
-                                  {adGroupsData[c.id].map((ag) => (
-                                    <tr key={ag.id} className="hover:bg-slate-50">
-                                      <td className="py-1 px-2 font-medium text-slate-800">{ag.name}</td>
-                                      <td className="py-1 px-2 text-slate-500">{ag.state}</td>
-                                      <td className="py-1 px-2 text-right tabular-nums">
-                                        {money(ag.default_bid)}
-                                      </td>
-                                      <td className="py-1 px-2 text-right tabular-nums">{num(ag.impressions)}</td>
-                                      <td className="py-1 px-2 text-right tabular-nums">{num(ag.clicks)}</td>
-                                      <td className="py-1 px-2 text-right tabular-nums font-semibold text-spend">
-                                        {money(ag.spend)}
-                                      </td>
-                                      <td className="py-1 px-2 text-right tabular-nums font-semibold text-sales">
-                                        {money(ag.sales)}
-                                      </td>
-                                      <td className="py-1 px-2 text-right tabular-nums">{num(ag.orders)}</td>
-                                      <td className="py-1 px-2 text-right tabular-nums">{pct(ag.acos)}</td>
-                                      <td className="py-1 px-2 text-right tabular-nums">{ratio(ag.roas)}</td>
+                              <div className="overflow-x-auto w-full">
+                                <table className="w-full min-w-[760px] text-xs font-mono whitespace-nowrap">
+                                  <thead className="border-b border-border-dim text-[10px] uppercase text-slate-400">
+                                    <tr>
+                                      <th className="py-1 px-2 text-left">Name</th>
+                                      <th className="py-1 px-2 text-left">State</th>
+                                      <th className="py-1 px-2 text-right">Default Bid</th>
+                                      <th className="py-1 px-2 text-right">Impr.</th>
+                                      <th className="py-1 px-2 text-right">Clicks</th>
+                                      <th className="py-1 px-2 text-right">Spend</th>
+                                      <th className="py-1 px-2 text-right">Sales</th>
+                                      <th className="py-1 px-2 text-right">Orders</th>
+                                      <th className="py-1 px-2 text-right">ACOS</th>
+                                      <th className="py-1 px-2 text-right">ROAS</th>
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                  </thead>
+                                  <tbody className="divide-y divide-border-dim">
+                                    {adGroupsData[c.id].map((ag) => (
+                                      <tr key={ag.id} className="hover:bg-slate-50">
+                                        <td className="py-1 px-2 font-medium text-slate-800">{ag.name}</td>
+                                        <td className="py-1 px-2 text-slate-500">{ag.state}</td>
+                                        <td className="py-1 px-2 text-right tabular-nums">
+                                          {money(ag.default_bid)}
+                                        </td>
+                                        <td className="py-1 px-2 text-right tabular-nums">{num(ag.impressions)}</td>
+                                        <td className="py-1 px-2 text-right tabular-nums">{num(ag.clicks)}</td>
+                                        <td className="py-1 px-2 text-right tabular-nums font-semibold text-spend">
+                                          {money(ag.spend)}
+                                        </td>
+                                        <td className="py-1 px-2 text-right tabular-nums font-semibold text-sales">
+                                          {money(ag.sales)}
+                                        </td>
+                                        <td className="py-1 px-2 text-right tabular-nums">{num(ag.orders)}</td>
+                                        <td className="py-1 px-2 text-right tabular-nums">{pct(ag.acos)}</td>
+                                        <td className="py-1 px-2 text-right tabular-nums">{ratio(ag.roas)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             )}
                           </div>
                         </td>
@@ -1288,9 +1319,9 @@ export function CampaignTable({
           {totals && campaigns.length > 0 && (
             <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-slate-950 sticky bottom-0 z-20">
               <tr>
-                <td className="py-2.5 px-3 sticky left-0 z-30 bg-slate-100" />
-                <td className="py-2.5 px-2 sticky left-[40px] z-30 bg-slate-100" />
-                <td className="py-2.5 px-3 sticky left-[96px] z-30 bg-slate-100 shadow-[1px_0_0_0_#cbd5e1]">
+                <td className="py-2.5 px-3 lg:sticky lg:left-0 lg:z-30 bg-slate-100" />
+                <td className="py-2.5 px-2 lg:sticky lg:left-[40px] lg:z-30 bg-slate-100" />
+                <td className="py-2.5 px-3 lg:sticky lg:left-[96px] lg:z-30 bg-slate-100 lg:shadow-[1px_0_0_0_#cbd5e1]">
                   Total ({num(totalCount)} campaigns)
                 </td>
 
@@ -1352,8 +1383,8 @@ export function CampaignTable({
       </div>
 
       {/* Pagination Footer */}
-      <div className="p-3 border-t border-border-dim flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-500 bg-white">
-        <div className="flex items-center gap-3">
+      <div className="p-3 border-t border-border-dim flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-[11px] text-slate-500 bg-white">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
             <span>Rows per page</span>
             <select
@@ -1376,7 +1407,7 @@ export function CampaignTable({
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           <button
             type="button"
             disabled={page <= 1}
@@ -1393,7 +1424,7 @@ export function CampaignTable({
           >
             ‹ Prev
           </button>
-          <span className="px-2">
+          <span className="px-2 whitespace-nowrap">
             Page {page} of {totalPages}
           </span>
           <button

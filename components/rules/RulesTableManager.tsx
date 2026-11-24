@@ -521,10 +521,10 @@ export function RulesTableManager({
   return (
     <div className="flex flex-col gap-3">
       {/* Search & Actions Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Left: Search input & Bulk actions */}
-        <div className="flex items-center gap-2 flex-1 max-w-md">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 flex-1 w-full sm:max-w-md">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -539,7 +539,7 @@ export function RulesTableManager({
           </div>
 
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-1.5 animate-in fade-in">
+            <div className="flex items-center gap-1.5 animate-in fade-in shrink-0">
               <button
                 type="button"
                 onClick={() => handleBulk('ENABLE')}
@@ -566,7 +566,7 @@ export function RulesTableManager({
         </div>
 
         {/* Right: History & + Add Rule Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto shrink-0">
           <Button
             type="button"
             variant="outline"
@@ -613,7 +613,11 @@ export function RulesTableManager({
                   const isPinned = pinnedColumns.includes(col.id);
                   const isLastPinned = isPinned && col.id === lastPinnedId;
                   const leftOffset = columnOffsets[col.id];
-                  const canStick = isPinned && (containerWidth ? leftOffset + col.width <= containerWidth : true);
+                  const canStick =
+                    isPinned &&
+                    (containerWidth
+                      ? containerWidth >= 768 && leftOffset + col.width <= containerWidth * 0.65
+                      : false);
                   const stickyClasses = canStick
                     ? `sticky z-30 bg-slate-100 ${
                         isLastPinned
@@ -741,7 +745,11 @@ export function RulesTableManager({
                         const isPinned = pinnedColumns.includes(col.id);
                         const isLastPinned = isPinned && col.id === lastPinnedId;
                         const leftOffset = columnOffsets[col.id];
-                        const canStick = isPinned && (containerWidth ? leftOffset + col.width <= containerWidth : true);
+                        const canStick =
+                    isPinned &&
+                    (containerWidth
+                      ? containerWidth >= 768 && leftOffset + col.width <= containerWidth * 0.65
+                      : false);
                         const stickyClasses = canStick
                           ? `sticky z-20 bg-white group-hover:bg-slate-50 ${
                               isLastPinned
@@ -944,7 +952,7 @@ export function RulesTableManager({
         </div>
 
         {/* Footer & Pagination Matrix */}
-        <div className="p-3 border-t border-slate-300 flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-slate-600 bg-slate-50/50">
+        <div className="p-3 border-t border-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono text-slate-600 bg-slate-50/50">
           {/* Rows Per Page */}
           <div className="flex items-center gap-2">
             <span>Rows per page:</span>
@@ -965,7 +973,7 @@ export function RulesTableManager({
           </div>
 
           {/* Page Nav & Column Config */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
             <span className="text-slate-700">
               Page <strong className="text-slate-900">{page}</strong> of{' '}
               <strong className="text-slate-900">{totalPages}</strong>
@@ -1044,7 +1052,7 @@ export function RulesTableManager({
             <p className="text-xs text-slate-600 mb-1">
               Select the category of rule you want to create:
             </p>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => {

@@ -27,7 +27,7 @@ export function Tabs({
   return (
     <div
       role="tablist"
-      className={`inline-flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-300 ${className}`}
+      className={`inline-flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-300 max-w-full overflow-x-auto ${className}`}
     >
       {items.map((tab) => {
         const isActive = value === tab.id;

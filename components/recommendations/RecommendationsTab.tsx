@@ -123,7 +123,7 @@ export function RecommendationsTab({ onGoToConfiguration }: RecommendationsTabPr
         </div>
 
         {/* Right: Analyse now & last analysed relative time */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto">
           <span className="text-xs text-text-muted font-mono">
             Last analysed: {formatRelativeTime(summary?.last_run_at || null)}
           </span>

@@ -92,10 +92,10 @@ export function ConditionRow({
   };
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-1 p-2 sm:p-0 rounded-md sm:rounded-none bg-slate-50/60 sm:bg-transparent border sm:border-0 border-border-dim/60">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
         {/* Metric Select */}
-        <div className="flex-1 min-w-[140px]">
+        <div className="w-full sm:flex-1 sm:min-w-[140px]">
           <Select
             value={condition.metric}
             onChange={(e) => handleMetricChange(e.target.value)}
@@ -105,59 +105,61 @@ export function ConditionRow({
           />
         </div>
 
-        {/* Operator Select */}
-        <div className="w-[170px]">
-          <Select
-            value={condition.op || ''}
-            onChange={(e) => handleOperatorChange(e.target.value)}
-            options={operatorOptions}
-            placeholder="Select operator..."
-            disabled={!isMetricSelected}
-            aria-label={`Condition ${index + 1} operator`}
-          />
-        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Operator Select */}
+          <div className="flex-1 sm:w-[170px]">
+            <Select
+              value={condition.op || ''}
+              onChange={(e) => handleOperatorChange(e.target.value)}
+              options={operatorOptions}
+              placeholder="Select operator..."
+              disabled={!isMetricSelected}
+              aria-label={`Condition ${index + 1} operator`}
+            />
+          </div>
 
-        {/* Value Input */}
-        <div className="w-[140px] relative">
-          <input
-            type="number"
-            inputMode="decimal"
-            step="any"
-            value={condition.value !== null && condition.value !== undefined ? condition.value : ''}
-            onChange={handleValueChange}
-            onKeyDown={handleKeyDown}
-            disabled={!isOperatorSelected}
-            placeholder="0"
-            className={`w-full h-8 px-2.5 rounded-md border text-sm bg-surface transition-all outline-none font-mono tabular-nums ${
-              unitAdornment ? 'pr-7' : ''
-            } ${
-              !isOperatorSelected
-                ? 'bg-slate-50 border-border-dim text-text-muted cursor-not-allowed'
-                : 'border-border-dim focus:border-primary focus:ring-1 focus:ring-primary'
-            } ${error ? 'border-danger' : ''}`}
-            aria-label={`Condition ${index + 1} value`}
-          />
-          {unitAdornment && (
-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted pointer-events-none select-none">
-              {unitAdornment}
-            </span>
-          )}
-        </div>
+          {/* Value Input */}
+          <div className="w-28 sm:w-[140px] relative shrink-0 sm:shrink">
+            <input
+              type="number"
+              inputMode="decimal"
+              step="any"
+              value={condition.value !== null && condition.value !== undefined ? condition.value : ''}
+              onChange={handleValueChange}
+              onKeyDown={handleKeyDown}
+              disabled={!isOperatorSelected}
+              placeholder="0"
+              className={`w-full h-8 px-2.5 rounded-md border text-sm bg-surface transition-all outline-none font-mono tabular-nums ${
+                unitAdornment ? 'pr-7' : ''
+              } ${
+                !isOperatorSelected
+                  ? 'bg-slate-50 border-border-dim text-text-muted cursor-not-allowed'
+                  : 'border-border-dim focus:border-primary focus:ring-1 focus:ring-primary'
+              } ${error ? 'border-danger' : ''}`}
+              aria-label={`Condition ${index + 1} value`}
+            />
+            {unitAdornment && (
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted pointer-events-none select-none">
+                {unitAdornment}
+              </span>
+            )}
+          </div>
 
-        {/* Remove button */}
-        <button
-          type="button"
-          onClick={() => onRemove(index)}
-          disabled={!canRemove}
-          className="p-1.5 text-text-muted hover:text-danger rounded-md hover:bg-red-50 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-          title="Remove condition"
-          aria-label={`Remove condition ${index + 1}`}
-        >
-          <Trash2 className="size-4" />
-        </button>
+          {/* Remove button */}
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            disabled={!canRemove}
+            className="p-1.5 text-text-muted hover:text-danger rounded-md hover:bg-red-50 disabled:opacity-30 disabled:pointer-events-none transition-colors shrink-0"
+            title="Remove condition"
+            aria-label={`Remove condition ${index + 1}`}
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
       </div>
 
-      {error && <span className="text-xs text-danger ml-1">{error}</span>}
+      {error && <span className="text-xs text-danger ml-0.5">{error}</span>}
     </div>
   );
 }

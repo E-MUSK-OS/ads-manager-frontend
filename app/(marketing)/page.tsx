@@ -592,7 +592,7 @@ export default function MarketingHomePage() {
           <div className="absolute inset-0 bg-graph-paper opacity-50 pointer-events-none" />
 
           {/* Floating Subtle Micro-Cards */}
-          <div className="hidden lg:block absolute top-28 left-8 z-10 animate-float-subtle">
+          <div className="hidden lg:block absolute top-12 xl:top-20 2xl:top-28 left-4 xl:left-8 2xl:left-12 z-10 animate-float-subtle">
             <div className="p-3 bg-white/95 backdrop-blur-md rounded-xl border border-indigo-200/90 shadow-md flex items-center gap-3 text-xs font-mono">
               <div className="relative flex size-2.5 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-80" />
@@ -1548,7 +1548,7 @@ export default function MarketingHomePage() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <ScrollReveal delay={0}>
               <div className="text-center max-w-3xl mx-auto mb-16">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono font-bold mb-3">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-950/70 dark:border-blue-500/50 dark:text-blue-300 text-xs font-mono font-bold mb-3 shadow-2xs">
                   <Filter className="size-3.5" />
                   <span>INTERACTIVE KEYWORD SIEVE</span>
                 </div>

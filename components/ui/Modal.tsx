@@ -106,7 +106,7 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           handleAttemptClose();
@@ -122,7 +122,7 @@ export function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         {(title || showCloseButton) && (
-          <div className="flex items-start justify-between px-6 py-4 border-b border-border-dim bg-white shrink-0">
+          <div className="flex items-start justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-border-dim bg-white shrink-0">
             <div>
               {title && (
                 <h2 id="modal-title" className="text-base font-semibold text-text-main">
@@ -145,7 +145,7 @@ export function Modal({
             )}
           </div>
         )}
-        <div className="overflow-y-auto flex-1 p-6">{children}</div>
+        <div className="overflow-y-auto overflow-x-hidden flex-1 p-3.5 sm:p-6">{children}</div>
       </div>
     </div>,
     document.body

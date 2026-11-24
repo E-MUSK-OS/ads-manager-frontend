@@ -37,7 +37,7 @@ function RecommendationsPageContent() {
   ];
 
   return (
-    <div className="flex flex-col gap-5 p-6 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-5 p-3 sm:p-5 lg:p-6 max-w-7xl mx-auto">
       {/* Page Title & Navigation Tabs */}
       <div className="flex flex-col gap-4">
         <div>

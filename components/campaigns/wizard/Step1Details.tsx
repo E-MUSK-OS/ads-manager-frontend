@@ -336,7 +336,7 @@ export function Step1Details({
           <label className="block text-slate-600 uppercase text-[11px] mb-1.5 font-medium">
             Campaign Setup
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <RadioCard
               selected={true}
               onClick={() => {}}
@@ -452,7 +452,7 @@ export function Step1Details({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label htmlFor="top-placement" className="block text-slate-500 text-[10px] uppercase mb-1">
                 Top of search (%)

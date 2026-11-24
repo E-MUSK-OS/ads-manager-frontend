@@ -156,37 +156,67 @@ export function RulesPageContent({ defaultSection = 'all' }: RulesPageContentPro
 
         {/* Horizontal Segmented Section Filter Tabs */}
         <div>
-          <div className="inline-flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-lg border border-slate-200 shadow-xs">
-            {SECTIONS.map((sec) => {
-              const isActive = sec.id === activeSection;
-              const count =
-                sec.id === 'all'
-                  ? totalCount
-                  : sec.affectedParameter
-                  ? counts[sec.affectedParameter] ?? 0
-                  : 0;
-              return (
-                <button
-                  key={sec.id}
-                  type="button"
-                  onClick={() => handleSelectSection(sec.id)}
-                  className={`flex items-center px-4 py-2 text-xs rounded-md transition-all font-medium ${
-                    isActive
-                      ? 'bg-indigo-600 text-white font-semibold shadow-xs'
-                      : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/80'
-                  }`}
-                >
-                  <span>{sec.label}</span>
-                  <span
-                    className={`ml-2 px-1.5 py-0.2 text-[10px] font-mono rounded-full ${
-                      isActive ? 'bg-indigo-500/80 text-white' : 'bg-slate-100 text-slate-600'
+          {/* Mobile Category Dropdown (< sm) */}
+          <div className="sm:hidden">
+            <label htmlFor="rules-section-select" className="sr-only">
+              Select rule category
+            </label>
+            <select
+              id="rules-section-select"
+              value={activeSection}
+              onChange={(e) => handleSelectSection(e.target.value as RuleSection)}
+              className="w-full text-xs font-semibold py-2.5 px-3 rounded-lg border border-border-dim bg-white text-text-main focus:outline-hidden focus:border-indigo-600 shadow-2xs cursor-pointer"
+            >
+              {SECTIONS.map((sec) => {
+                const count =
+                  sec.id === 'all'
+                    ? totalCount
+                    : sec.affectedParameter
+                    ? counts[sec.affectedParameter] ?? 0
+                    : 0;
+                return (
+                  <option key={sec.id} value={sec.id}>
+                    {sec.label} ({count})
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          {/* Desktop/Tablet Horizontal Tabs (>= sm) */}
+          <div className="hidden sm:block overflow-x-auto pb-1 max-w-full">
+            <div className="inline-flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-lg border border-slate-200 shadow-xs shrink-0">
+              {SECTIONS.map((sec) => {
+                const isActive = sec.id === activeSection;
+                const count =
+                  sec.id === 'all'
+                    ? totalCount
+                    : sec.affectedParameter
+                    ? counts[sec.affectedParameter] ?? 0
+                    : 0;
+                return (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => handleSelectSection(sec.id)}
+                    className={`flex items-center px-4 py-2 text-xs rounded-md transition-all font-medium select-none cursor-pointer ${
+                      isActive
+                        ? 'bg-indigo-600 text-white font-semibold shadow-xs'
+                        : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/80'
                     }`}
                   >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+                    <span>{sec.label}</span>
+                    <span
+                      className={`ml-2 px-1.5 py-0.2 text-[10px] font-mono rounded-full ${
+                        isActive ? 'bg-indigo-500/80 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 

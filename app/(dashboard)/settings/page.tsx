@@ -79,9 +79,9 @@ export default function Settings() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold tracking-tight mb-2">Account Settings</h1>
-      <p className="text-sm text-slate-500 mb-8">Manage connected Amazon Advertising accounts and security credentials.</p>
+    <div className="max-w-4xl mx-auto py-5 sm:py-8 px-3 sm:px-4">
+      <h1 className="text-xl sm:text-2xl font-bold tracking-tight mb-2">Account Settings</h1>
+      <p className="text-xs sm:text-sm text-slate-500 mb-6 sm:mb-8">Manage connected Amazon Advertising accounts and security credentials.</p>
 
       {error && (
         <div className="mb-6 p-4 border border-rose-200 bg-rose-50 rounded-md flex items-start gap-3 text-rose-800 text-sm">
@@ -91,21 +91,21 @@ export default function Settings() {
       )}
 
       {/* Connected Accounts Section */}
-      <div className="bg-surface border border-border-dim rounded-lg shadow-sm overflow-hidden mb-8">
-        <div className="p-6 border-b border-border-dim flex justify-between items-center bg-slate-50/50">
+      <div className="bg-surface border border-border-dim rounded-lg shadow-xs overflow-hidden mb-8">
+        <div className="p-4 sm:p-6 border-b border-border-dim flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Connected Amazon Advertising Accounts</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-slate-900">Connected Amazon Advertising Accounts</h2>
             <p className="text-xs text-slate-500">Accounts authorized via Login with Amazon (LWA).</p>
           </div>
           <Link
             href="/connect-amazon"
-            className="px-4 py-2 bg-primary text-white text-xs font-medium rounded-md hover:bg-indigo-600 transition-colors flex items-center gap-1.5"
+            className="px-4 py-2 bg-primary text-white text-xs font-medium rounded-md hover:bg-indigo-600 transition-colors flex items-center justify-center gap-1.5 w-full sm:w-auto shrink-0"
           >
             <Plus className="w-4 h-4" /> Connect Account
           </Link>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {loading ? (
             <div className="py-8 text-center text-sm text-slate-400">Loading accounts...</div>
           ) : accounts.length === 0 ? (
@@ -124,18 +124,18 @@ export default function Settings() {
           ) : (
             <div className="divide-y divide-border-dim">
               {accounts.map((acc) => (
-                <div key={acc.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between">
-                  <div>
-                    <div className="font-medium text-slate-900">
+                <div key={acc.id} className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-slate-900 truncate">
                       {acc.amazon_account_name || `Account #${acc.id}`}
                     </div>
-                    <div className="text-xs text-slate-500 flex gap-4 mt-1">
+                    <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
                       <span>Marketplace: <strong className="text-slate-700">{acc.marketplace}</strong></span>
                       {acc.profile_id && <span>Profile ID: {acc.profile_id}</span>}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
                     {acc.connection_status === 'reauth_required' ? (
                       <span className="text-xs font-medium px-2.5 py-1 bg-amber-100 text-amber-800 rounded border border-amber-200 flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5" /> Re-authorization Required
@@ -149,7 +149,7 @@ export default function Settings() {
                     <button
                       onClick={() => handleDisconnect(acc.id)}
                       disabled={disconnectingId === acc.id}
-                      className="px-3 py-1.5 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                      className="px-3 py-1.5 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                     >
                       {disconnectingId === acc.id ? (
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -167,18 +167,18 @@ export default function Settings() {
       </div>
 
       {/* Danger Zone: Delete Account */}
-      <div className="bg-surface border border-rose-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-rose-200 bg-rose-50/50">
+      <div className="bg-surface border border-rose-200 rounded-lg shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-rose-200 bg-rose-50/50">
           <div className="flex items-center gap-2 text-rose-900">
             <AlertTriangle className="w-5 h-5 text-rose-600" />
-            <h2 className="text-lg font-semibold">Delete Account</h2>
+            <h2 className="text-base sm:text-lg font-semibold">Delete Account</h2>
           </div>
           <p className="text-xs text-rose-700 mt-1">
             Permanently delete your AdsManager account and all associated data.
           </p>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <div className="text-sm text-slate-700 mb-4">
             <p className="font-medium text-slate-900 mb-1">Warning: This action is permanent and irreversible.</p>
             <p className="text-xs text-slate-600">
@@ -208,7 +208,7 @@ export default function Settings() {
             <button
               type="submit"
               disabled={deletingAccount || deleteConfirm !== 'DELETE'}
-              className="px-4 py-2 bg-rose-600 text-white rounded-md text-xs font-semibold hover:bg-rose-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              className="w-full sm:w-auto px-4 py-2 bg-rose-600 text-white rounded-md text-xs font-semibold hover:bg-rose-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
             >
               {deletingAccount ? (
                 <>

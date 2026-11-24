@@ -117,7 +117,7 @@ export function ActionRow({
     <div className="flex flex-col gap-1.5 p-3 rounded-md bg-slate-50/70 border border-border-dim">
       <div className="flex flex-wrap items-center gap-2.5">
         {/* Action Type Select */}
-        <div className="min-w-[190px] flex-1 sm:flex-initial">
+        <div className="w-full sm:w-auto sm:min-w-[190px] flex-1 sm:flex-initial">
           <Select
             value={action.type}
             onChange={(e) => handleTypeChange(e.target.value)}

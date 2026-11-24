@@ -361,7 +361,7 @@ export function PerformanceChart({
       {/* Top Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 border-b border-slate-200 pb-3">
         {/* Left: Granularity & View Switcher */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Granularity Switcher */}
           <div className="inline-flex gap-1 bg-slate-100 p-1 rounded-md border border-slate-300 text-xs font-mono">
             {(['daily', 'weekly', 'monthly'] as const).map((g) => (
@@ -412,7 +412,7 @@ export function PerformanceChart({
         </div>
 
         {/* Right: Data Labels, Changes, Fullscreen */}
-        <div className="flex items-center gap-3 text-xs font-mono">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs font-mono">
           <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-800 select-none">
             <input
               type="checkbox"

@@ -39,9 +39,28 @@ export function TemplateGallery({
   }, [meta?.templates, selectedCategory]);
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Category Filter Chips */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+    <div className="flex flex-col gap-4 sm:gap-5">
+      {/* Mobile Category Dropdown (Dropdown instead of scrolling on small screens) */}
+      <div className="sm:hidden">
+        <label htmlFor="template-category-select" className="sr-only">
+          Select template category
+        </label>
+        <select
+          id="template-category-select"
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-border-dim bg-white text-text-main focus:outline-hidden focus:border-primary shadow-2xs"
+        >
+          {categories.map((cat) => (
+            <option key={cat.key} value={cat.key}>
+              {cat.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Desktop/Tablet Category Filter Chips */}
+      <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto pb-1">
         {categories.map((cat) => {
           const isActive = selectedCategory === cat.key;
           return (

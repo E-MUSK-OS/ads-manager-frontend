@@ -211,13 +211,13 @@ function CampaignsPageContent() {
         </div>
       )}
       {/* Top Header & Portfolio Rail */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-baseline gap-2">
-            <h1 className="text-xl font-bold font-mono tracking-tight text-slate-900 uppercase">
+            <h1 className="text-lg sm:text-xl font-bold font-mono tracking-tight text-slate-900 uppercase">
               Campaigns
             </h1>
-            <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200 uppercase">
+            <span className="text-[10px] sm:text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200 uppercase">
               Sponsored Products (SP)
             </span>
             <span className="text-xs font-mono text-slate-500">
@@ -225,7 +225,7 @@ function CampaignsPageContent() {
             </span>
           </div>
           <p className="text-xs text-slate-500 font-mono mt-0.5">
-            Amazon Ads India (Amazon.in) Campaign Manager — Sponsored Products, Brands & Display
+            Amazon Ads India (Amazon.in) Campaign Manager — Sponsored Products, Brands &amp; Display
           </p>
           <div className="flex flex-wrap items-center gap-2 mt-1">
             {account?.last_synced_at ? (
@@ -244,7 +244,7 @@ function CampaignsPageContent() {
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Date Range Picker */}
           <DateRangePicker value={dateRange} onChange={setDateRange} />
 
@@ -257,7 +257,7 @@ function CampaignsPageContent() {
             title="Sync account metrics with Amazon Ads"
           >
             <RotateCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-indigo-600' : ''}`} />
-            <span>{syncing ? 'Syncing with Amazon Ads...' : 'Sync Now'}</span>
+            <span>{syncing ? 'Syncing...' : 'Sync Now'}</span>
           </button>
 
           {/* Show / Hide Chart Toggle */}
@@ -277,7 +277,7 @@ function CampaignsPageContent() {
           {/* Primary Create Campaign Button */}
           <Link
             href="/campaigns/new"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs font-semibold shadow-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-mono text-xs font-semibold shadow-xs transition-colors shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Create campaign</span>
@@ -286,7 +286,7 @@ function CampaignsPageContent() {
       </div>
 
       {/* Portfolio Switcher & Status Pills Rail */}
-      <div className="bg-white border border-slate-300 rounded-md p-2.5 flex flex-wrap items-center justify-between gap-3 font-mono text-xs shadow-2xs">
+      <div className="bg-white border border-slate-300 rounded-md p-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 font-mono text-xs shadow-2xs">
         {/* Left: Quick Status Pills */}
         <div className="flex flex-wrap items-center gap-1.5">
           {[
@@ -329,9 +329,11 @@ function CampaignsPageContent() {
         </div>
 
         {/* Right: Portfolio Selector */}
-        <div className="flex items-center gap-2">
-          <Briefcase className="w-3.5 h-3.5 text-slate-500" />
-          <span className="text-slate-700 font-semibold text-[11px] uppercase tracking-wider">Portfolio:</span>
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
+          <div className="flex items-center gap-2">
+            <Briefcase className="w-3.5 h-3.5 text-slate-500" />
+            <span className="text-slate-700 font-semibold text-[11px] uppercase tracking-wider">Portfolio:</span>
+          </div>
           <select
             value={filters.portfolio || 'ALL'}
             onChange={(e) => handlePortfolioChange(e.target.value)}

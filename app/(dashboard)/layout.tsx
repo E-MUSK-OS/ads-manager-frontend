@@ -4,7 +4,7 @@ import { clearTokens } from '@/lib/auth';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  Target, Settings, LogOut, ChevronDown, Sparkles
+  Target, Settings, LogOut, ChevronDown, Sparkles, SlidersHorizontal, Menu, X
 } from 'lucide-react';
 import { useActiveAccount } from '@/lib/useActiveAccount';
 import { getRecommendationsSummary } from '@/lib/recommendations-api';
@@ -114,6 +114,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, [account]);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const handleLogout = () => {
     clearTokens();
     window.location.href = '/login';
@@ -122,14 +124,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navLinks = [
     { href: '/campaigns', label: 'Campaigns', icon: Target },
     { href: '/recommendations', label: 'Recommendations', icon: Sparkles, badge: openCount },
+    { href: '/rules', label: 'Rules', icon: SlidersHorizontal },
   ];
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans">
-      {/* Sidebar System */}
-      <aside className="w-64 bg-surface border-r border-border-dim flex flex-col z-20 shadow-sm">
-        <div className="h-14 flex items-center px-6 border-b border-border-dim">
-          <div className="font-mono font-bold tracking-tight text-lg text-primary">AdsManager</div>
+    <div className="flex h-screen bg-slate-50 text-slate-900 font-sans overflow-hidden">
+      {/* Mobile drawer backdrop */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar System (Static on md+, Drawer on mobile) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-surface border-r border-border-dim flex flex-col shadow-xl md:shadow-sm transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="h-14 flex items-center justify-between px-6 border-b border-border-dim">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 group cursor-pointer"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <div className="size-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-xs">
+              <SlidersHorizontal className="size-3.5" />
+            </div>
+            <span className="font-mono font-bold tracking-tight text-lg text-slate-900 group-hover:text-primary transition-colors">
+              Ads<span className="text-primary">Manager</span>
+            </span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="p-1 text-slate-400 hover:text-slate-600 md:hidden"
+            aria-label="Close menu"
+          >
+            <X className="size-5" />
+          </button>
         </div>
         
         <nav className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1">
@@ -140,6 +174,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Link 
                 key={link.href} 
                 href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   isActive 
                     ? 'bg-slate-100 text-primary font-semibold' 
@@ -160,22 +195,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col relative overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
         {/* Topbar */}
-        <header className="h-14 bg-surface border-b border-border-dim flex items-center justify-between px-6 z-10 shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-500">Workspace /</span>
+        <header className="h-14 bg-surface border-b border-border-dim flex items-center justify-between px-3 sm:px-6 z-10 shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-1.5 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 md:hidden shrink-0"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="size-4" />
+            </button>
+            <span className="text-sm font-medium text-slate-500 hidden sm:inline">Workspace /</span>
             <AccountSwitcher />
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <Link 
               href="/settings" 
               className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
               title="Account settings & Amazon connection"
             >
               <Settings className="w-3.5 h-3.5" />
-              <span>Settings</span>
+              <span className="hidden sm:inline">Settings</span>
             </Link>
             <div className="w-px h-4 bg-slate-200"></div>
             <button 
@@ -183,15 +226,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Sign out</span>
+              <span className="hidden sm:inline">Sign out</span>
             </button>
           </div>
         </header>
 
         {/* Dynamic Page Content injected here on top of the graph paper background */}
         <div className="flex-1 overflow-auto relative">
-          <div className="absolute inset-0 bg-graph-paper pointer-events-none opacity-60"></div>
-          <div className="relative z-10 p-8 min-h-full">
+          <div className="fixed inset-0 bg-graph-paper pointer-events-none opacity-60 z-0"></div>
+          <div className="relative z-10 p-3 sm:p-5 lg:p-8 min-h-full">
             {children}
           </div>
         </div>

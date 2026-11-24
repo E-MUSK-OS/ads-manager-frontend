@@ -2,8 +2,8 @@ export function setTokens(accessToken: string, refreshToken: string) {
   if (typeof window !== 'undefined') {
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
-    // Also set cookie for middleware
-    document.cookie = `accessToken=${accessToken}; path=/; max-age=86400`;
+    // Also set cookie for middleware (7 days: 7 * 24 * 60 * 60 = 604800s)
+    document.cookie = `accessToken=${accessToken}; path=/; max-age=604800`;
   }
 }
 

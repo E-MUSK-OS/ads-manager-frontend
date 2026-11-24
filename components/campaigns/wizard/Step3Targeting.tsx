@@ -206,19 +206,19 @@ export function Step3Targeting({
   return (
     <div className="space-y-5 font-mono text-xs text-text-main">
       {/* Targeting Mode Banner */}
-      <div className="bg-surface border border-border-dim rounded-md p-4 shadow-2xs flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="bg-surface border border-border-dim rounded-md p-4 shadow-2xs flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="font-bold uppercase tracking-wider text-slate-800 text-sm">
             Targeting: {isAuto ? 'Automatic' : 'Manual'}
           </span>
-          <span className="text-[11px] text-slate-500 font-sans">
+          <span className="text-[11px] text-slate-500 font-sans hidden sm:inline">
             ({isAuto ? 'Amazon targets keywords and products' : 'Custom keywords & product targets'})
           </span>
         </div>
         <button
           type="button"
           onClick={onGoToStep1}
-          className="text-primary hover:underline text-[11px] font-medium"
+          className="text-primary hover:underline text-[11px] font-medium shrink-0"
         >
           Change in Step 1
         </button>
@@ -243,7 +243,7 @@ export function Step3Targeting({
               Automatic Bidding Mode
             </span>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"
@@ -385,7 +385,7 @@ export function Step3Targeting({
 
           {/* Sub-tabs: Keywords vs Products */}
           <div className="border-t border-border-dim pt-4 space-y-4">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => onChange({ manualTab: 'KEYWORDS' })}
@@ -416,7 +416,7 @@ export function Step3Targeting({
             {t.manualTab === 'KEYWORDS' ? (
               <div className="space-y-4">
                 {/* Match Type Toggles */}
-                <div className="flex items-center gap-4 text-[11px]">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px]">
                   <span className="text-slate-500 font-semibold">Match Types:</span>
                   {(['BROAD', 'PHRASE', 'EXACT'] as Match[]).map((m) => (
                     <label key={m} className="flex items-center gap-1.5 cursor-pointer">

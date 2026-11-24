@@ -206,7 +206,7 @@ export function Step2Products({
         {/* Left 2 Cols: Product Search & Tabs */}
         <div className="lg:col-span-2 bg-surface border border-border-dim rounded-md shadow-2xs p-4 flex flex-col space-y-4">
           {/* Tabs header */}
-          <div className="flex items-center gap-2 border-b border-border-dim pb-2">
+          <div className="flex items-center gap-2 border-b border-border-dim pb-2 overflow-x-auto">
             {[
               { key: 'search', label: 'Search', icon: Search },
               { key: 'enter_list', label: 'Enter List', icon: List },
@@ -219,7 +219,7 @@ export function Step2Products({
                   key={t.key}
                   type="button"
                   onClick={() => setActiveTab(t.key as any)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium text-xs transition-colors ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium text-xs transition-colors shrink-0 ${
                     active
                       ? 'bg-primary text-white shadow-2xs'
                       : 'text-slate-600 hover:bg-slate-100'
@@ -236,7 +236,7 @@ export function Step2Products({
           {activeTab === 'search' && (
             <div className="space-y-3">
               <form onSubmit={handleSearchSubmit} className="flex gap-2">
-                <div className="relative flex-1">
+                <div className="relative flex-1 min-w-0">
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
@@ -248,14 +248,14 @@ export function Step2Products({
                 </div>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 bg-primary text-white rounded font-medium hover:bg-indigo-800"
+                  className="px-3.5 py-1.5 bg-primary text-white rounded font-medium hover:bg-indigo-800 shrink-0"
                 >
                   Search
                 </button>
               </form>
 
               {/* Sort & Select all bar */}
-              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-border-dim">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 pt-1 border-t border-border-dim">
                 <div className="flex items-center gap-2">
                   <span>Available products ({totalCount})</span>
                   <button

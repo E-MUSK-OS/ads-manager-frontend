@@ -211,11 +211,11 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
         </button>
       }
     >
-      <div className="w-[520px] p-3 text-text-main">
-        <div className="flex gap-4">
+      <div className="w-[92vw] max-w-[520px] p-3 text-text-main">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           {/* Presets Column */}
-          <div className="w-36 border-r border-border-dim pr-3 flex flex-col gap-0.5">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-1 px-2">
+          <div className="w-full sm:w-36 border-b sm:border-b-0 sm:border-r border-border-dim pb-2 sm:pb-0 sm:pr-3 flex flex-row sm:flex-col flex-wrap sm:flex-nowrap gap-1 sm:gap-0.5">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-1 px-2 w-full">
               Presets
             </span>
             {presets.map((p) => {
@@ -225,7 +225,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                   key={p.key}
                   type="button"
                   onClick={() => calculatePreset(p.key)}
-                  className={`text-left px-2 py-1 text-xs rounded-md transition-colors ${
+                  className={`text-left px-2 py-1 text-xs rounded-md transition-colors whitespace-nowrap ${
                     active
                       ? 'bg-primary text-white font-medium'
                       : 'hover:bg-slate-100 text-slate-700'

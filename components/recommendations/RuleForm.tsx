@@ -645,7 +645,7 @@ export function RuleForm({
       </div>
 
       {/* Form Footer */}
-      <div className="flex items-center justify-between pt-4 border-t border-border-dim">
+      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-border-dim">
         <div>
           {onBack && (
             <Button
@@ -653,7 +653,7 @@ export function RuleForm({
               variant="ghost"
               size="sm"
               onClick={onBack}
-              className="gap-1 text-text-muted hover:text-text-main"
+              className="gap-1 text-text-muted hover:text-text-main w-full sm:w-auto justify-center"
             >
               <ArrowLeft className="size-4" />
               <span>Back to templates</span>
@@ -661,13 +661,14 @@ export function RuleForm({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={handleCancelClick}
             disabled={isSaving}
+            className="flex-1 sm:flex-initial"
           >
             Cancel
           </Button>
@@ -675,7 +676,7 @@ export function RuleForm({
             type="submit"
             size="sm"
             disabled={!isValid || isSaving}
-            className="min-w-[100px]"
+            className="flex-1 sm:flex-initial min-w-[100px]"
           >
             {isSaving ? 'Saving...' : ruleId ? 'Update Rule' : 'Save Rule'}
           </Button>

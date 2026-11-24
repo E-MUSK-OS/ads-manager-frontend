@@ -178,26 +178,26 @@ function CreateCampaignContent() {
   const nextStepName = STEPS[draft.step]?.title || 'Next';
 
   return (
-    <div className="min-h-screen bg-graph-paper-faint flex flex-col font-mono text-xs text-text-main pb-20">
+    <div className="min-h-screen bg-graph-paper-faint flex flex-col font-mono text-xs text-text-main pb-28 sm:pb-20">
       {/* Top Bar */}
-      <header className="bg-surface border-b border-border-dim sticky top-0 z-40 px-6 py-3 shadow-2xs flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <header className="bg-surface border-b border-border-dim sticky top-0 z-40 px-3 sm:px-6 py-2.5 sm:py-3 shadow-2xs flex items-center justify-between">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={() => {
               if (isDirty) setCloseConfirmOpen(true);
               else router.push('/campaigns');
             }}
-            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
             title="Close builder"
           >
             <X className="w-5 h-5" />
           </button>
-          <div>
-            <span className="font-bold text-sm uppercase tracking-wide text-slate-900 block">
+          <div className="min-w-0">
+            <span className="font-bold text-xs sm:text-sm uppercase tracking-wide text-slate-900 block truncate">
               Create Campaign
             </span>
-            <span className="text-[10px] text-slate-400 font-medium">
+            <span className="text-[10px] text-slate-400 font-medium block truncate">
               Sponsored Products • Step {draft.step} of 5: {STEPS[draft.step - 1].title}
             </span>
           </div>
@@ -208,10 +208,10 @@ function CreateCampaignContent() {
         </div>
       </header>
 
-      {/* Main 3-Column Content Layout */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Col: Stepper (280px / 3 cols) */}
-        <div className="lg:col-span-3 sticky top-20">
+      {/* Main Layout: 1 column on < xl, 3 columns on >= xl */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-4 md:p-6 grid grid-cols-1 xl:grid-cols-12 gap-4 sm:gap-6 items-start">
+        {/* Left Col: Stepper (non-sticky on < xl, sticky on >= xl) */}
+        <div className="xl:col-span-3 static xl:sticky xl:top-20">
           <Stepper
             currentStep={draft.step}
             maxStepReached={draft.maxStepReached}
@@ -220,8 +220,8 @@ function CreateCampaignContent() {
           />
         </div>
 
-        {/* Center Col: Active Step Form (6 cols) */}
-        <div className="lg:col-span-6 space-y-4">
+        {/* Center Col: Active Step Form (6 cols on xl) */}
+        <div className="xl:col-span-6 space-y-4 min-w-0">
           {draft.step === 1 && (
             <Step1Details
               draft={draft}
@@ -296,31 +296,31 @@ function CreateCampaignContent() {
           )}
         </div>
 
-        {/* Right Col: Forecast & Summary Rail (320px / 3 cols) */}
-        <div className="lg:col-span-3 sticky top-20">
+        {/* Right Col: Forecast & Summary Rail (non-sticky on < xl, sticky on >= xl) */}
+        <div className="xl:col-span-3 static xl:sticky xl:top-20 min-w-0">
           <ForecastRail draft={draft} rules={rules} countryName={countryName} />
         </div>
       </main>
 
       {/* Sticky Bottom Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border-dim px-6 py-3 shadow-lg flex items-center justify-between">
+      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border-dim px-3 sm:px-6 py-2.5 sm:py-3 shadow-lg flex items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => {
             if (isDirty) setCloseConfirmOpen(true);
             else router.push('/campaigns');
           }}
-          className="text-slate-500 hover:text-spend font-medium text-xs px-2 py-1"
+          className="text-slate-500 hover:text-spend font-medium text-xs px-2 py-1 shrink-0"
         >
           Discard
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {draft.step > 1 && (
             <button
               type="button"
               onClick={handleBack}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded border border-border-dim bg-white hover:bg-slate-50 text-slate-700 font-medium shadow-2xs"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-2 rounded border border-border-dim bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs shadow-2xs"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back</span>
@@ -331,9 +331,10 @@ function CreateCampaignContent() {
             <button
               type="button"
               onClick={handleNext}
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded bg-primary hover:bg-indigo-800 text-white font-bold shadow-xs transition-colors"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-3.5 sm:px-5 py-2 rounded bg-primary hover:bg-indigo-800 text-white font-bold text-xs shadow-xs transition-colors"
             >
-              <span>Next: {nextStepName}</span>
+              <span className="hidden sm:inline">Next: {nextStepName}</span>
+              <span className="sm:hidden">Next</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           ) : (
@@ -342,15 +343,16 @@ function CreateCampaignContent() {
                 type="button"
                 disabled={submitting}
                 onClick={() => handleLaunch('PAUSED')}
-                className="px-4 py-2 border border-border-dim rounded hover:bg-slate-50 font-medium text-slate-800"
+                className="px-2.5 sm:px-4 py-2 border border-border-dim rounded hover:bg-slate-50 font-medium text-xs text-slate-800"
               >
-                Launch as paused
+                <span className="hidden sm:inline">Launch as paused</span>
+                <span className="sm:hidden">Paused</span>
               </button>
               <button
                 type="button"
                 disabled={submitting}
                 onClick={() => handleLaunch('ENABLED')}
-                className="px-6 py-2 bg-primary text-white rounded font-bold shadow-xs hover:bg-indigo-800 flex items-center gap-2"
+                className="px-3.5 sm:px-6 py-2 bg-primary text-white rounded font-bold text-xs shadow-xs hover:bg-indigo-800 flex items-center gap-1.5 sm:gap-2"
               >
                 {submitting && <RotateCw className="w-3.5 h-3.5 animate-spin" />}
                 <span>Launch campaign</span>

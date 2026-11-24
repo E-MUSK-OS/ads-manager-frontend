@@ -39,7 +39,7 @@ interface ServiceErrorItem {
   msg?: string;
 }
 
-function parseDetail(detail: unknown): { message: string; fields: FieldError[] } {
+function parseDetail(detail: unknown, fallbackMessage?: string): { message: string; fields: FieldError[] } {
   if (typeof detail === 'string') return { message: detail, fields: [] };
   if (Array.isArray(detail)) {
     const fields: FieldError[] = detail.map((d: unknown) => {
@@ -52,7 +52,7 @@ function parseDetail(detail: unknown): { message: string; fields: FieldError[] }
     });
     return { message: fields[0]?.message ?? 'Validation failed', fields };
   }
-  return { message: 'Something went wrong', fields: [] };
+  return { message: fallbackMessage || 'Something went wrong', fields: [] };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,8 +72,9 @@ export async function apiClient<T = any>(endpoint: string, options: RequestInit 
   }
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => ({}));
-    const bodyObj = (body && typeof body === 'object') ? (body as { detail?: unknown }) : {};
-    const { message, fields } = parseDetail(bodyObj.detail);
+    const bodyObj = (body && typeof body === 'object') ? (body as { detail?: unknown; message?: unknown }) : {};
+    const fallback = typeof bodyObj.message === 'string' ? bodyObj.message : undefined;
+    const { message, fields } = parseDetail(bodyObj.detail, fallback);
     throw new ApiError(message, response.status, fields, body);
   }
   if (response.status === 204) return null as T;
@@ -694,4 +695,66 @@ export async function getHourlyMatrix(
     { signal }
   );
 }
+
+// ---------------------------------------------------------------------------
+// Amazon Ads API (LWA) Types and Client Methods (Phase N2)
+// ---------------------------------------------------------------------------
+
+export interface AmazonProfileItem {
+  profileId: string;
+  accountName: string;
+  countryCode: string;
+  currencyCode: string;
+  timezone: string;
+  marketplace: string;
+  isSelected: boolean;
+  isSelectable: boolean;
+}
+
+export interface AmazonStatusData {
+  connected: boolean;
+  connectionStatus: string;
+  amazonAccountName: string | null;
+  selectedProfileId: string | null;
+  region: string;
+  connectedAt: string | null;
+  tokenExpiresAt: string | null;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+  code?: string;
+}
+
+export async function connectAmazonAds(region: string = 'EU'): Promise<ApiResponse<{ authorizationUrl: string; region: string }>> {
+  return apiClient<ApiResponse<{ authorizationUrl: string; region: string }>>('/amazon-ads/connect', {
+    method: 'POST',
+    body: JSON.stringify({ region }),
+  });
+}
+
+export async function getAmazonAccounts(refresh: boolean = false): Promise<ApiResponse<{ profiles: AmazonProfileItem[]; count: number }>> {
+  return apiClient<ApiResponse<{ profiles: AmazonProfileItem[]; count: number }>>(`/amazon-ads/accounts${refresh ? '?refresh=true' : ''}`);
+}
+
+export async function selectAmazonAccount(profileId: string): Promise<ApiResponse<AmazonProfileItem>> {
+  return apiClient<ApiResponse<AmazonProfileItem>>('/amazon-ads/accounts/select', {
+    method: 'POST',
+    body: JSON.stringify({ profileId }),
+  });
+}
+
+export async function getAmazonStatus(): Promise<ApiResponse<AmazonStatusData>> {
+  return apiClient<ApiResponse<AmazonStatusData>>('/amazon-ads/status');
+}
+
+export async function disconnectAmazonAds(profileId?: string): Promise<ApiResponse<{ connected: boolean; connectionStatus: string }>> {
+  return apiClient<ApiResponse<{ connected: boolean; connectionStatus: string }>>('/amazon-ads/disconnect', {
+    method: 'POST',
+    body: JSON.stringify(profileId ? { profileId } : {}),
+  });
+}
+
 

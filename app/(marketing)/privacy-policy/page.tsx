@@ -306,7 +306,7 @@ export default function PrivacyPolicyPage() {
                     <CheckCircle2 className="size-3.5 text-emerald-600 mt-0.5 shrink-0" />
                     <span>
                       <strong className="text-slate-900 font-semibold">Instant Disconnect:</strong>{' '}
-                      Disconnecting your account immediately cascades token and metric erasure.
+                      Disconnecting your account immediately purges stored OAuth tokens and halts sync while preserving historical reporting.
                     </span>
                   </div>
                 </div>
@@ -592,12 +592,18 @@ export default function PrivacyPolicyPage() {
                   </div>
                   <p className="text-slate-600 leading-relaxed">
                     You can disconnect your Amazon Advertising account at any time from your settings panel.
-                    Disconnecting an account immediately invalidates stored OAuth refresh tokens and triggers a
-                    cascading deletion of associated campaign caches.
+                    Disconnecting an account immediately purges and nullifies stored OAuth refresh tokens, stopping all automated sync.
+                    Historical campaign reporting metrics are preserved for your review unless you submit a full account deletion request.
                   </p>
                   <p className="text-slate-600 leading-relaxed">
-                    If you close your account or submit a deletion request to our Data Protection team, all
-                    historical metrics, logs, and account records are permanently purged within 30 days.
+                    To request permanent erasure of all historical campaign metrics, logs, and user records, submit a data deletion request through our{' '}
+                    <Link href="/contact" className="text-indigo-600 underline font-medium hover:text-indigo-800">
+                      Contact &amp; Privacy Request Form
+                    </Link>{' '}
+                    or email our Data Protection Officer at{' '}
+                    <a href="mailto:privacy@netutechno.com" className="text-indigo-600 underline font-mono font-medium hover:text-indigo-800">
+                      privacy@netutechno.com
+                    </a>. All data is permanently purged within 30 days of verified request receipt.
                   </p>
                 </div>
               </section>
@@ -693,11 +699,11 @@ export default function PrivacyPolicyPage() {
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col gap-2 text-xs font-mono">
                   <div>
                     <span className="text-slate-500">Privacy &amp; Data Protection:</span>{' '}
-                    <span className="text-indigo-600 font-bold">privacy@adsmanager.com</span>
+                    <span className="text-indigo-600 font-bold">privacy@netutechno.com</span>
                   </div>
                   <div>
                     <span className="text-slate-500">General Support:</span>{' '}
-                    <span className="text-slate-800">support@adsmanager.com</span>
+                    <span className="text-slate-800">support@netutechno.com</span>
                   </div>
                   <div>
                     <span className="text-slate-500">Platform:</span>{' '}

@@ -114,13 +114,14 @@ export interface DateWindowInfo {
 }
 
 export interface Evidence {
-  metrics: Record<string, number | null>;
-  matched: Array<{ metric: string; op: string; threshold: number; actual: number | null; target_acos?: number; offset?: number }>;
-  current: Record<string, string | number | null>;
+  metrics?: Record<string, number | null>;
+  matched?: Array<{ metric: string; op: string; threshold: number; actual: number | null; target_acos?: number; offset?: number }>;
+  current?: Record<string, string | number | null>;
   projection?: Projection | null;
   date_window?: DateWindowInfo;
   confidence?: ConfidenceInfo;
   tracked_since?: string;
+  snoozed_until?: string | null;
 }
 
 export interface SuggestedAction {
@@ -147,6 +148,8 @@ export interface Recommendation {
   evidence: Evidence;
   suggested_actions: SuggestedAction[];
   status: 'OPEN' | 'APPLIED' | 'DISMISSED' | 'EXPIRED' | 'FAILED';
+  display_status?: 'OPEN' | 'APPLIED' | 'DISMISSED' | 'EXPIRED' | 'FAILED' | 'SNOOZED' | 'UNDONE' | string;
+  snoozed_until?: string | null;
   dedupe_key: string;
   created_at: string;
   resolved_at: string | null;
@@ -224,4 +227,53 @@ export interface RulePreviewResponse {
   evaluated_entities: number;
   sample: Array<Record<string, unknown>>;
   funnel?: RuleFunnel | null;
+  warnings?: string[];
+  backtest?: {
+    eligible: boolean;
+    matched_count: number;
+    next_7d_spend: number;
+    next_7d_orders: number;
+    next_7d_sales: number;
+  } | null;
+}
+
+export interface RecommendationOutcome {
+  eligible: boolean;
+  recommendation_id: number;
+  applied_at?: string;
+  before_window?: { start: string; end: string; days: number };
+  after_window?: { start: string; end: string; days: number };
+  before?: {
+    spend: number;
+    sales: number;
+    orders: number;
+    clicks: number;
+    impressions: number;
+    acos: number | null;
+    cpc: number | null;
+    ctr: number | null;
+    cvr: number | null;
+  };
+  after?: {
+    spend: number;
+    sales: number;
+    orders: number;
+    clicks: number;
+    impressions: number;
+    acos: number | null;
+    cpc: number | null;
+    ctr: number | null;
+    cvr: number | null;
+  };
+  delta?: {
+    spend_diff: number;
+    spend_change_pct: number | null;
+    orders_diff: number;
+    orders_change_pct: number | null;
+    sales_diff: number;
+    sales_change_pct: number | null;
+    acos_diff: number | null;
+  };
+  disclaimer: string;
+  reason?: string;
 }

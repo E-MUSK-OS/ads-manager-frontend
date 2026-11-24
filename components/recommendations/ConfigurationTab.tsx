@@ -7,11 +7,14 @@ import { ScopeModal } from './ScopeModal';
 import { useRules, type StatusFilter } from './useRules';
 import { useRecommendationMeta } from './useRecommendationMeta';
 import { useActiveAccount } from '@/lib/useActiveAccount';
+import { useToast } from '@/components/ui/toast';
+import { cloneRule, runRuleNow } from '@/lib/recommendations-api';
 import type { Rule, ScopeMode } from '@/lib/types/recommendation';
 
 export function ConfigurationTab() {
   const { account } = useActiveAccount();
   const { meta, currencySymbol } = useRecommendationMeta();
+  const { success, error: toastError } = useToast();
   const {
     rules,
     filteredRules,
@@ -58,6 +61,28 @@ export function ConfigurationTab() {
 
   const handleDuplicate = async (ruleId: number) => {
     await duplicateRule(ruleId);
+  };
+
+  const handleRunNow = async (rule: Rule) => {
+    try {
+      const res = await runRuleNow(rule.id);
+      success(`Rule "${rule.name}" ran: ${res.created} new, ${res.last_match_count} active recommendations`);
+      await refreshRules();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to run rule';
+      toastError('Run now failed', msg);
+    }
+  };
+
+  const handleCloneRule = async (rule: Rule) => {
+    try {
+      const cloned = await cloneRule(rule.id);
+      success(`Rule cloned as "${cloned.name}"`);
+      await refreshRules();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to clone rule';
+      toastError('Clone failed', msg);
+    }
   };
 
   const statusFilters: Array<{ key: StatusFilter; label: string }> = [
@@ -163,6 +188,8 @@ export function ConfigurationTab() {
           onBuildCustom={handleOpenAdd}
           onBulkAction={handleBulkAction}
           onExportSelected={() => {}}
+          onRunNow={handleRunNow}
+          onCloneRule={handleCloneRule}
         />
       )}
 

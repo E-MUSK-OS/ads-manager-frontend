@@ -10,6 +10,8 @@ import {
   AlertTriangle,
   ExternalLink,
   History,
+  Clock,
+  TrendingUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover } from '@/components/ui/Popover';
@@ -33,6 +35,9 @@ interface RecommendationCardProps {
   onToggleSelect: (id: number) => void;
   onApply: (id: number, editedParams?: Record<string, unknown>) => Promise<unknown>;
   onDismiss: (id: number, reason?: string) => Promise<unknown>;
+  onSnooze?: (id: number, days: 7 | 14 | 30) => Promise<unknown>;
+  onUndo?: (id: number) => Promise<unknown>;
+  onViewOutcome?: (id: number) => void;
   onReopen: (id: number) => Promise<unknown>;
   onReanalyse: () => void;
 }
@@ -47,13 +52,30 @@ export function RecommendationCard({
   onToggleSelect,
   onApply,
   onDismiss,
+  onSnooze,
+  onUndo,
+  onViewOutcome,
   onReopen,
   onReanalyse,
 }: RecommendationCardProps) {
   const [expanded, setExpanded] = useState<boolean>(false);
   const [dismissPopoverOpen, setDismissPopoverOpen] = useState<boolean>(false);
+  const [snoozePopoverOpen, setSnoozePopoverOpen] = useState<boolean>(false);
   const [dismissReason, setDismissReason] = useState<string>('');
   const [editModalOpen, setEditModalOpen] = useState<boolean>(false);
+
+  const appliedDate = rec.resolved_at ? new Date(rec.resolved_at) : (rec.created_at ? new Date(rec.created_at) : null);
+  const canUndo = Boolean(appliedDate && (Date.now() - appliedDate.getTime()) <= 7 * 86400 * 1000);
+
+  const handleSnooze = async (days: 7 | 14 | 30) => {
+    setSnoozePopoverOpen(false);
+    if (!onSnooze) return;
+    try {
+      await onSnooze(rec.id, days);
+    } catch {
+      // Handled in parent
+    }
+  };
 
   // Edit parameters state for "Edit & apply"
   const firstAction = rec.suggested_actions?.[0];
@@ -294,6 +316,54 @@ export function RecommendationCard({
                 </Button>
               )}
 
+              {/* Snooze Popover */}
+              {onSnooze && (
+                <Popover
+                  open={snoozePopoverOpen}
+                  onOpenChange={setSnoozePopoverOpen}
+                  trigger={
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={isProcessing}
+                      className="text-text-muted hover:text-amber-700 hover:bg-amber-50 gap-1"
+                      title="Snooze recommendation"
+                    >
+                      <Clock className="size-3.5" />
+                      <span>Snooze</span>
+                    </Button>
+                  }
+                  align="end"
+                >
+                  <div className="p-2 w-36 flex flex-col gap-1 text-xs">
+                    <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider px-2 py-0.5">
+                      Snooze for:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSnooze(7)}
+                      className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 text-xs font-medium text-text-main transition-colors"
+                    >
+                      7 days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSnooze(14)}
+                      className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 text-xs font-medium text-text-main transition-colors"
+                    >
+                      14 days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSnooze(30)}
+                      className="w-full text-left px-2 py-1 rounded hover:bg-slate-100 text-xs font-medium text-text-main transition-colors"
+                    >
+                      30 days
+                    </button>
+                  </div>
+                </Popover>
+              )}
+
               {/* Dismiss with reason Popover */}
               <Popover
                 open={dismissPopoverOpen}
@@ -354,35 +424,77 @@ export function RecommendationCard({
           )}
 
           {isApplied && (
-            <div className="flex items-center gap-2 text-[11px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-              <Check className="size-3.5" />
-              <span>Applied</span>
-              {rec.campaign_id && (
-                <Link
-                  href={`/campaigns/${rec.campaign_id}`}
-                  className="text-primary hover:underline flex items-center gap-0.5 ml-1 font-medium"
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                <Check className="size-3.5" />
+                <span>Applied</span>
+                {rec.campaign_id && (
+                  <Link
+                    href={`/campaigns/${rec.campaign_id}`}
+                    className="text-primary hover:underline flex items-center gap-0.5 ml-1 font-medium"
+                  >
+                    <span>View campaign</span>
+                    <ExternalLink className="size-2.5" />
+                  </Link>
+                )}
+              </div>
+
+              {onViewOutcome && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => onViewOutcome(rec.id)}
+                  className="gap-1 text-slate-700 hover:text-primary"
+                  title="View 7d before vs 7d after outcome"
                 >
-                  <span>View campaign</span>
-                  <ExternalLink className="size-2.5" />
-                </Link>
+                  <TrendingUp className="size-3" />
+                  <span>Outcome</span>
+                </Button>
+              )}
+
+              {canUndo && onUndo && (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => onUndo(rec.id)}
+                  disabled={isProcessing}
+                  className="gap-1 text-slate-700 hover:text-danger hover:border-red-300"
+                  title="Revert changes made by this recommendation (within 7 days)"
+                >
+                  <RotateCcw className="size-3" />
+                  <span>Undo</span>
+                </Button>
               )}
             </div>
           )}
 
           {isDismissed && (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-text-muted italic">
-                Dismissed {rec.apply_result?.dismiss_reason ? `(${rec.apply_result.dismiss_reason})` : ''}
-              </span>
+              {rec.display_status === 'SNOOZED' || rec.evidence?.snoozed_until ? (
+                <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 flex items-center gap-1 font-medium">
+                  <Clock className="size-3" />
+                  <span>Snoozed until {String(rec.evidence?.snoozed_until || '')}</span>
+                </span>
+              ) : rec.display_status === 'UNDONE' ? (
+                <span className="text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1 font-medium">
+                  <RotateCcw className="size-3" />
+                  <span>Undone (reverted)</span>
+                </span>
+              ) : (
+                <span className="text-[11px] text-text-muted italic">
+                  Dismissed {rec.apply_result?.dismiss_reason ? `(${rec.apply_result.dismiss_reason})` : ''}
+                </span>
+              )}
               <Button
                 size="xs"
                 variant="outline"
                 onClick={() => onReopen(rec.id)}
                 disabled={isProcessing}
                 className="gap-1"
+                title="Restore recommendation"
               >
                 <RotateCcw className="size-3" />
-                <span>Undo</span>
+                <span>Restore</span>
               </Button>
             </div>
           )}

@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RecommendationCard } from './RecommendationCard';
 import { RecommendationFilters } from './RecommendationFilters';
 import { ReviewModal } from './ReviewModal';
+import { OutcomeModal } from './OutcomeModal';
 import { useRecommendations } from './useRecommendations';
 import { useRules } from './useRules';
 import { useRecommendationMeta } from './useRecommendationMeta';
@@ -48,6 +49,8 @@ export function RecommendationsTab({ onGoToConfiguration }: RecommendationsTabPr
     applyRec,
     dismissRec,
     reopenRec,
+    snoozeRec,
+    undoRec,
     bulkApply,
     bulkDismiss,
     toggleSelect,
@@ -60,6 +63,7 @@ export function RecommendationsTab({ onGoToConfiguration }: RecommendationsTabPr
   const [showBulkApplyConfirm, setShowBulkApplyConfirm] = useState<boolean>(false);
   const [showBulkDismissConfirm, setShowBulkDismissConfirm] = useState<boolean>(false);
   const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
+  const [outcomeModalRecId, setOutcomeModalRecId] = useState<number | null>(null);
 
   // Bulk action type counts breakdown for confirmation dialog
   const bulkActionBreakdown = React.useMemo(() => {
@@ -318,6 +322,9 @@ export function RecommendationsTab({ onGoToConfiguration }: RecommendationsTabPr
               onToggleSelect={toggleSelect}
               onApply={applyRec}
               onDismiss={dismissRec}
+              onSnooze={snoozeRec}
+              onUndo={undoRec}
+              onViewOutcome={(id) => setOutcomeModalRecId(id)}
               onReopen={reopenRec}
               onReanalyse={runAnalysis}
             />
@@ -376,6 +383,14 @@ export function RecommendationsTab({ onGoToConfiguration }: RecommendationsTabPr
           return await bulkApply(ids);
         }}
         isApplying={processingIds.size > 0}
+      />
+
+      {/* Outcome Tracking Modal */}
+      <OutcomeModal
+        open={Boolean(outcomeModalRecId)}
+        onClose={() => setOutcomeModalRecId(null)}
+        recommendationId={outcomeModalRecId}
+        currencySymbol={currencySymbol}
       />
 
       {/* Bulk Apply Confirmation Dialog */}

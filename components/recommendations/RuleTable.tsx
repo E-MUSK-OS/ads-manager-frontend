@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pencil, Trash2, Link2, Layers, Wand2 } from 'lucide-react';
+import { Pencil, Trash2, Link2, Layers, Wand2, Play, Copy, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/Switch';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,8 @@ interface RuleTableProps {
   onBuildCustom: () => void;
   onBulkAction: (action: 'enable' | 'disable' | 'delete') => Promise<void>;
   onExportSelected: () => void;
+  onRunNow?: (rule: Rule) => Promise<void>;
+  onCloneRule?: (rule: Rule) => Promise<void>;
 }
 
 export function formatRelativeTime(dateStr: string | null): string {
@@ -58,10 +60,14 @@ export function RuleTable({
   onBuildCustom,
   onBulkAction,
   onExportSelected,
+  onRunNow,
+  onCloneRule,
 }: RuleTableProps) {
   // Delete confirm state
   const [ruleToDelete, setRuleToDelete] = useState<Rule | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [runningRuleId, setRunningRuleId] = useState<number | null>(null);
+  const [cloningRuleId, setCloningRuleId] = useState<number | null>(null);
 
   const allSelected = rules.length > 0 && rules.every((r) => selectedIds.has(r.id));
   const someSelected = selectedIds.size > 0 && !allSelected;
@@ -231,6 +237,52 @@ export function RuleTable({
                   {/* Row Actions */}
                   <td className="px-3 py-2.5 align-top">
                     <div className="flex items-center gap-1 text-text-muted">
+                      {onRunNow && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setRunningRuleId(rule.id);
+                            try {
+                              await onRunNow(rule);
+                            } finally {
+                              setRunningRuleId(null);
+                            }
+                          }}
+                          disabled={runningRuleId === rule.id}
+                          className="p-1 hover:text-primary rounded hover:bg-slate-100 transition-colors disabled:opacity-50"
+                          title="Run now"
+                          aria-label={`Run ${rule.name} now`}
+                        >
+                          {runningRuleId === rule.id ? (
+                            <Loader2 className="size-3.5 animate-spin text-primary" />
+                          ) : (
+                            <Play className="size-3.5" />
+                          )}
+                        </button>
+                      )}
+                      {onCloneRule && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setCloningRuleId(rule.id);
+                            try {
+                              await onCloneRule(rule);
+                            } finally {
+                              setCloningRuleId(null);
+                            }
+                          }}
+                          disabled={cloningRuleId === rule.id}
+                          className="p-1 hover:text-primary rounded hover:bg-slate-100 transition-colors disabled:opacity-50"
+                          title="Clone rule"
+                          aria-label={`Clone ${rule.name}`}
+                        >
+                          {cloningRuleId === rule.id ? (
+                            <Loader2 className="size-3.5 animate-spin text-primary" />
+                          ) : (
+                            <Copy className="size-3.5" />
+                          )}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => onEditRule(rule)}

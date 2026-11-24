@@ -8,6 +8,7 @@ import type {
   RecommendationsSummary,
   RecommendationsListResponse,
   Recommendation,
+  RecommendationOutcome,
 } from './types/recommendation';
 
 export async function getRecommendationMeta(adsAccountId: number): Promise<Meta> {
@@ -65,6 +66,28 @@ export async function updateRuleScope(
 
 export async function duplicateRule(ruleId: number): Promise<Rule> {
   return apiClient<Rule>(`/recommendations/rules/${ruleId}/duplicate`, {
+    method: 'POST',
+  });
+}
+
+export async function cloneRule(ruleId: number): Promise<Rule> {
+  return apiClient<Rule>(`/recommendations/rules/${ruleId}/clone`, {
+    method: 'POST',
+  });
+}
+
+export async function runRuleNow(ruleId: number): Promise<{
+  rule_id: number;
+  rule_name: string;
+  created: number;
+  expired: number;
+  skipped: number;
+  funnel?: unknown;
+  last_match_count: number;
+  last_run_at: string | null;
+  notice?: string;
+}> {
+  return apiClient(`/recommendations/rules/${ruleId}/run-now`, {
     method: 'POST',
   });
 }
@@ -148,6 +171,26 @@ export async function reopenRecommendation(id: number): Promise<Recommendation> 
   return apiClient<Recommendation>(`/recommendations/${id}/reopen`, {
     method: 'POST',
   });
+}
+
+export async function snoozeRecommendation(
+  id: number,
+  days: 7 | 14 | 30 = 7
+): Promise<Recommendation> {
+  return apiClient<Recommendation>(`/recommendations/${id}/snooze`, {
+    method: 'POST',
+    body: JSON.stringify({ days }),
+  });
+}
+
+export async function undoRecommendation(id: number): Promise<Recommendation> {
+  return apiClient<Recommendation>(`/recommendations/${id}/undo`, {
+    method: 'POST',
+  });
+}
+
+export async function getRecommendationOutcome(id: number): Promise<RecommendationOutcome> {
+  return apiClient<RecommendationOutcome>(`/recommendations/${id}/outcome`);
 }
 
 export interface BulkApplyResultItem {

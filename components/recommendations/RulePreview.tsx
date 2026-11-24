@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Loader2, Sparkles, Info, Lightbulb } from 'lucide-react';
+import { Loader2, Sparkles, Info, Lightbulb, AlertTriangle, History } from 'lucide-react';
 import { previewRule } from '@/lib/recommendations-api';
 import type { RuleDraft, RulePreviewResponse, Meta } from '@/lib/types/recommendation';
 
@@ -101,6 +101,36 @@ export function RulePreview({
       </div>
 
       {error && <p className="text-xs text-danger">{error}</p>}
+
+      {/* Contradiction & Overlap Warnings (Q14) */}
+      {data && data.warnings && data.warnings.length > 0 && (
+        <div className="flex flex-col gap-1 p-2.5 rounded bg-amber-50/90 border border-amber-300 text-xs text-amber-900">
+          <div className="flex items-center gap-1.5 font-semibold text-amber-950">
+            <AlertTriangle className="size-3.5 text-amber-600 shrink-0" />
+            <span>Rule Warnings</span>
+          </div>
+          <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-800">
+            {data.warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Backtest (Q16) */}
+      {data && data.backtest && data.backtest.eligible && (
+        <div className="flex flex-col gap-1 p-2.5 rounded bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950">
+          <div className="flex items-center gap-1.5 font-semibold text-emerald-900">
+            <History className="size-3.5 text-emerald-600 shrink-0" />
+            <span>Backtest (If Run 7 Days Ago)</span>
+          </div>
+          <p className="text-[11px] text-emerald-800 leading-relaxed font-sans">
+            If run 7 days ago: <strong className="font-semibold">{data.backtest.matched_count} item{data.backtest.matched_count === 1 ? '' : 's'}</strong> matched. Over the next 7 days, they spent{' '}
+            <strong className="font-semibold">{currencySymbol}{data.backtest.next_7d_spend.toFixed(2)}</strong> with{' '}
+            <strong className="font-semibold">{data.backtest.next_7d_orders} purchase{data.backtest.next_7d_orders === 1 ? '' : 's'}</strong>.
+          </p>
+        </div>
+      )}
 
       {/* Funnel explanation / "Why no results?" summary */}
       {data && data.funnel && (

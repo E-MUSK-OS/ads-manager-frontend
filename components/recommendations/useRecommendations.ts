@@ -8,6 +8,8 @@ import {
   applyRecommendation as apiApplyRecommendation,
   dismissRecommendation as apiDismissRecommendation,
   reopenRecommendation as apiReopenRecommendation,
+  snoozeRecommendation as apiSnoozeRecommendation,
+  undoRecommendation as apiUndoRecommendation,
   bulkRecommendationsAction,
 } from '@/lib/recommendations-api';
 import { ApiError } from '@/lib/api-client';
@@ -266,6 +268,58 @@ export function useRecommendations() {
     [success, toastError, notifyChanged, fetchSummary, fetchList]
   );
 
+  // Snooze
+  const snoozeRec = useCallback(
+    async (id: number, days: 7 | 14 | 30 = 7) => {
+      setProcessingIds((prev) => new Set(prev).add(id));
+      try {
+        const res = await apiSnoozeRecommendation(id, days);
+        success(`Recommendation snoozed for ${days} days`);
+        notifyChanged();
+        await fetchSummary();
+        await fetchList();
+        return res;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to snooze recommendation';
+        toastError('Snooze failed', msg);
+        throw err;
+      } finally {
+        setProcessingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [success, toastError, notifyChanged, fetchSummary, fetchList]
+  );
+
+  // Undo (within 7 days)
+  const undoRec = useCallback(
+    async (id: number) => {
+      setProcessingIds((prev) => new Set(prev).add(id));
+      try {
+        const res = await apiUndoRecommendation(id);
+        success('Recommendation changes undone and reverted');
+        notifyChanged();
+        await fetchSummary();
+        await fetchList();
+        return res;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to undo recommendation';
+        toastError('Undo failed', msg);
+        throw err;
+      } finally {
+        setProcessingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [success, toastError, notifyChanged, fetchSummary, fetchList]
+  );
+
   // Bulk Apply
   const bulkApply = useCallback(
     async (ids: number[], idempotencyKey?: string) => {
@@ -370,6 +424,8 @@ export function useRecommendations() {
     applyRec,
     dismissRec,
     reopenRec,
+    snoozeRec,
+    undoRec,
     bulkApply,
     bulkDismiss,
     toggleSelect,
